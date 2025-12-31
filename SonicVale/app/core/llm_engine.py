@@ -88,17 +88,42 @@ class LLMEngine:
                 else:
                     raise e
     def save_load_json(self, json_str: str):
-        """解析JSON，支持自动提取<result>标签内容"""
+        """解析JSON，支持自动提取<result>标签内容。
+
+        兼容两种输出：
+        1) 直接输出 JSON（数组/对象）
+        2) 用 <result>...</result> 包裹 JSON
+
+        另外：如果 <result> 内是空对象 {} / 空数组 []，会尝试从原始文本中再抓取一次数组。
+        """
+        raw_text = json_str
+
         # 先尝试提取 <result> 标签内容
         try:
             json_str = self._extract_result_tag(json_str)
         except ValueError:
             # 没有 <result> 标签，直接使用原文本
             pass
-        
-        # 尝试加载json
+
+        def _loads(s: str):
+            return json.loads(s)
+
+        # 尝试加载 json
         try:
-            return json.loads(json_str)
+            parsed = _loads(json_str)
+
+            # 若提取到的 result 是空对象/空数组，但原文里可能还有真正的数组，则再尝试抓取一次
+            if (parsed == {} or parsed == []) and raw_text and raw_text != json_str:
+                # 从原始文本中抓第一个 JSON 数组（最常见）
+                m = re.search(r"\[[\s\S]*\]", raw_text)
+                if m:
+                    try:
+                        return _loads(m.group(0))
+                    except Exception:
+                        pass
+
+            return parsed
+
         except json.JSONDecodeError:
             # JSON解析失败，尝试让LLM修复
             prompt = get_auto_fix_json_prompt(json_str)

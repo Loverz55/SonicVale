@@ -1,4 +1,5 @@
-import json
+from __future__ import annotations
+
 import os
 import shutil
 import tempfile
@@ -134,72 +135,66 @@ class VoiceService:
 
     def import_voices(self, tts_provider_id: int, zip_path: str, target_dir: str) -> Tuple[int, int, List[str]]:
         """从zip文件导入音色库
-        - 解压zip文件
-        - 将音频文件复制到指定目录
-        - 添加音色到数据库（跳过重名的）
-        - 返回: (成功数量, 跳过数量, 跳过的音色名称列表)
+        递归查找所有音频文件，用文件名（去扩展名）作为音色名
         """
         if not os.path.exists(zip_path):
             raise FileNotFoundError(f"zip文件不存在: {zip_path}")
-        
+
         # 确保目标目录存在
         os.makedirs(target_dir, exist_ok=True)
-        
+
         success_count = 0
         skipped_count = 0
-        skipped_names = []
-        
-        # 创建临时目录解压
+        skipped_names: List[str] = []
+
+        audio_extensions = {".wav", ".flac", ".mp3", ".ogg", ".m4a"}
+
         with tempfile.TemporaryDirectory() as temp_dir:
-            # 解压zip文件
             with zipfile.ZipFile(zip_path, 'r') as zipf:
                 zipf.extractall(temp_dir)
-            
-            # 读取元数据
-            metadata_path = os.path.join(temp_dir, "voices_metadata.json")
-            if not os.path.exists(metadata_path):
-                raise ValueError("无效的音色库文件：缺少voices_metadata.json")
-            
-            with open(metadata_path, 'r', encoding='utf-8') as f:
-                voices_metadata = json.load(f)
-            
-            for voice_data in voices_metadata:
-                voice_name = voice_data["name"]
-                
-                # 检查是否已存在同名音色
-                existing = self.repository.get_by_name(voice_name, tts_provider_id)
-                if existing:
-                    skipped_count += 1
-                    skipped_names.append(voice_name)
-                    continue
-                
-                reference_path = None
-                
-                # 如果有参考音频文件，复制到目标目录
-                if voice_data.get("reference_file"):
-                    source_file = os.path.join(temp_dir, voice_data["reference_file"])
-                    if os.path.exists(source_file):
-                        # 使用音色名称作为文件名，保留原扩展名
-                        file_ext = os.path.splitext(source_file)[1]
-                        file_name = f"{voice_name}{file_ext}"
-                        dest_file = os.path.join(target_dir, file_name)
-                        shutil.copy2(source_file, dest_file)
-                        reference_path = dest_file
-                
-                # 创建音色实体
-                entity = VoiceEntity(
-                    name=voice_name,
-                    tts_provider_id=tts_provider_id,
-                    reference_path=reference_path,
-                    description=voice_data.get("description"),
-                    is_multi_emotion=voice_data.get("is_multi_emotion", 0)
-                )
-                
-                # 保存到数据库
-                po = VoicePO(**entity.__dict__)
-                self.repository.create(po)
-                success_count += 1
-        
+
+            # 递归查找所有音频文件
+            for root, dirs, files in os.walk(temp_dir):
+                # 过滤掉 macOS 的隐藏目录
+                dirs[:] = [d for d in dirs if not d.startswith('__') and not d.startswith('.')]
+
+                for f in files:
+                    # 跳过隐藏文件
+                    if f.startswith('.'):
+                        continue
+
+                    # 检查是否是音频文件
+                    file_ext = os.path.splitext(f)[1].lower()
+                    if file_ext not in audio_extensions:
+                        continue
+
+                    # 用文件名（去扩展名）作为音色名
+                    voice_name = os.path.splitext(f)[0]
+                    audio_path = os.path.join(root, f)
+
+                    # 检查是否已存在同名音色
+                    existing = self.repository.get_by_name(voice_name, tts_provider_id)
+                    if existing:
+                        skipped_count += 1
+                        skipped_names.append(voice_name)
+                        continue
+
+                    # 复制音频文件到目标目录
+                    dest_file = os.path.join(target_dir, f"{voice_name}{file_ext}")
+                    shutil.copy2(audio_path, dest_file)
+
+                    entity = VoiceEntity(
+                        name=voice_name,
+                        tts_provider_id=tts_provider_id,
+                        reference_path=dest_file,
+                        description=None,
+                        is_multi_emotion=0
+                    )
+
+                    po = VoicePO(**entity.__dict__)
+                    self.repository.create(po)
+                    success_count += 1
+
         return success_count, skipped_count, skipped_names
 
     def process_audio(self, dto: VoiceAudioProcessDTO) -> bool:

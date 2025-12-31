@@ -203,11 +203,20 @@ class ChapterService:
                 result = llm.generate_text(prompt)
                 # 解析json，并且构造为List[LineInitDTO]
                 # 解析 JSON 字符串为 Python 对象
+                # ---- debug: 打印 LLM 原始输出（排查为何会出现 <result>{}</result>）----
+                try:
+                    print("LLM raw result (first 2000 chars):\n", result[:2000])
+                except Exception:
+                    pass
+
                 parsed_data = llm.save_load_json(result)
-                if not parsed_data:
+
+                # 这里期望是 JSON 数组（list），否则一律当失败（避免 {} 这种“合法但无效”结果）
+                if not isinstance(parsed_data, list) or len(parsed_data) == 0:
                     return {
                         "success": False,
-                        "message": "JSON 解析失败或返回空对象",
+                        "message": "LLM 未返回有效的 JSON 数组（可能返回了空对象或格式不对）",
+                        "data": parsed_data,
                     }
                 # 这里进行自动填充
 

@@ -10,6 +10,7 @@ class LineEntity:
     """业务实体：台词"""
     chapter_id: int
     id: Optional[int] = None
+    local_id: Optional[int] = None  # 导入时的原始 id
     role_id : Optional[ int] = None
     voice_id : Optional[int] = None
     line_order : Optional[int] = None

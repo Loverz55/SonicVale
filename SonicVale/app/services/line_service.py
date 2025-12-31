@@ -110,14 +110,25 @@ class LineService:
         emotion_id = emotions_dict.get(line.emotion_name)
         # 获取强度id
         strength_id = strengths_dict.get(line.strength_name)
-        res = self.repository.create(LinePO(text_content=line.text_content, role_id=role.id,
-                                           chapter_id=chapter_id,line_order = index+1,emotion_id=emotion_id,strength_id=strength_id))
 
-        # 新增台词,这里搞个audio_path
+        # 创建 LinePO，数据库 id 自动生成，传入的 id 存入 local_id
+        line_po = LinePO(
+            text_content=line.text_content,
+            role_id=role.id,
+            chapter_id=chapter_id,
+            line_order=index+1,
+            emotion_id=emotion_id,
+            strength_id=strength_id
+        )
+        # 将传入的 id 存入 local_id（用于音频文件名前缀）
+        if hasattr(line, 'id') and line.id is not None:
+            line_po.local_id = line.id
 
-        # audio_path = os.path.join(getConfigPath(), str(project_id), str(chapter_id), "audio")
-        # os.makedirs(audio_path, exist_ok=True)
-        res_path = os.path.join(audio_path, "id_"+str(res.id) + ".wav")
+        res = self.repository.create(line_po)
+
+        # 音频文件名使用 local_id（如果有），否则使用数据库 id
+        file_id = res.local_id if res.local_id is not None else res.id
+        res_path = os.path.join(audio_path, "id_" + str(file_id) + ".wav")
         self.repository.update(res.id, {"audio_path": res_path})
 
 

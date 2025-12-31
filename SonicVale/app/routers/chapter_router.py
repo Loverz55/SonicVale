@@ -220,35 +220,46 @@ async def get_lines(
     if prompt is None:
         return Res(data=None, code=500, message="提示词不存在")
 
+    import time, random  # 放在文件顶部已有 import 列表后，但避免重复
+
     for idx, content in enumerate(contents):
         logging.info(f"解析第 {idx + 1}/{len(contents)} 段...")
 
-        try:
-            roles_list = list(roles)
-            result = chapter_service.para_content(
-                prompt.content, chapter_id, content,
-                roles_list, emotion_names, strength_names,is_precise_fill
-            )
+        roles_list = list(roles)
 
-            if not result["success"]:
-                return Res(
-                data=None,
-                code=500,
-                message=result["message"]
+        retry_success = False
+        last_err_msg = ""
+        for attempt in range(3):
+            try:
+                result = chapter_service.para_content(
+                    prompt.content,
+                    chapter_id,
+                    content,
+                    roles_list,
+                    emotion_names,
+                    strength_names,
+                    is_precise_fill,
                 )
+                if result.get("success") and isinstance(result.get("data"), list) and result.get("data"):
+                    # 成功
+                    lines_data = result["data"]
+                    for line_data in lines_data:
+                        roles.add(line_data.role_name)
+                    all_line_data.extend(lines_data)
+                    retry_success = True
+                    break
+                else:
+                    last_err_msg = result.get("message", "LLM 返回无效结果")
+            except Exception as e:
+                last_err_msg = str(e)
 
-            # 提取lines_data中的角色
-            lines_data = result["data"]
-            for line_data in lines_data:
-                roles.add(line_data.role_name)
+            # 失败则等待随机时间后重试
+            wait = round(random.uniform(1, 3), 2)
+            logging.warning(f"第 {idx+1} 段第 {attempt+1} 次解析失败，将在 {wait}s 后重试… 错误: {last_err_msg}")
+            time.sleep(wait)
 
-            all_line_data.extend(lines_data)
-
-        except Exception as e:
-            logging.error(
-                f"解析第 {idx + 1} 段失败: {e}\n{traceback.format_exc()}"
-            )
-            return Res(data=None, code=500, message=f"解析失败：第 {idx + 1} 段处理出错，错误信息：{e}")
+        if not retry_success:
+            return Res(data=None, code=500, message=f"解析失败：第 {idx + 1} 段多次重试仍失败，最后错误信息：{last_err_msg}")
 
     try:
         audio_path = os.path.join(project.project_root_path,str(project_id),str(chapter_id),"audio")

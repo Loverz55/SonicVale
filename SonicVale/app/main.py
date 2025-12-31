@@ -104,7 +104,8 @@ def add_custom_params_column():
             default_json = json.dumps({
                 "response_format": {"type": "json_object"},
                 "temperature": 0.7,
-                "top_p": 0.9
+                "top_p": 0.9,
+                "max_tokens": 18192
             }, ensure_ascii=False)
             conn.execute(
                 text("UPDATE llm_provider SET custom_params = :val"),
@@ -137,6 +138,17 @@ def add_project_root_path_column():
 
             conn.commit()
 
+# 添加台词的 local_id 字段（导入时的原始 id，用于音频文件名前缀）
+def add_local_id_column():
+    with engine.begin() as conn:
+        result = conn.execute(text("PRAGMA table_info(lines)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "local_id" not in columns:
+            conn.execute(text("ALTER TABLE lines ADD COLUMN local_id INTEGER"))
+            print("已添加 local_id 列。")
+        else:
+            print("local_id 列已存在，跳过。")
+
 def get_tts_service(db: Session = Depends(get_db)) -> TTSProviderService:
     return TTSProviderService(TTSProviderRepository(db))
 
@@ -158,6 +170,8 @@ async def startup_event():
     add_is_precise_fill_column()
     # v1.0.7 添加项目的字段 project_root_path
     add_project_root_path_column()
+    # v1.1.0 添加台词的 local_id 字段
+    add_local_id_column()
 
     # 2) 初始化共享运行时
     try:

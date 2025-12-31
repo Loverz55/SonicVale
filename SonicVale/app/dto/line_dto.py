@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 class LineInitDTO(BaseModel):
+    id: Optional[int] = None
     role_name: Optional[str] = None
     text_content: str
     emotion_name: Optional[str] = None
@@ -30,6 +31,7 @@ class LineCreateDTO(BaseModel):
     voice_id : Optional[int] = None
     line_order: Optional[int] = None
     id: Optional[int] = None
+    local_id: Optional[int] = None  # 导入时的原始 id
     text_content: Optional[str] = None
 
     emotion_id: Optional[int] = None
@@ -46,6 +48,7 @@ class LineResponseDTO(BaseModel):
     voice_id : Optional[int] = None
     line_order: Optional[int] = None
     id: Optional[int] = None
+    local_id: Optional[int] = None  # 导入时的原始 id
     text_content: Optional[str] = None
 
     emotion_id: Optional[int] = None

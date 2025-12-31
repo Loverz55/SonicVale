@@ -174,7 +174,8 @@ const DEFAULT_CUSTOM_PARAMS = JSON.stringify(
   {
     response_format: { type: 'json_object' },
     temperature: 0.7,
-    top_p: 0.9
+    top_p: 0.9,
+    max_tokens: 18192
   },
   null,
   2  // 漂亮一点，换行缩进

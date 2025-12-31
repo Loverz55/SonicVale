@@ -125,6 +125,7 @@ class LinePO(Base):
 
     # 核心信息
     line_order = Column(Integer, nullable=True, index=True)
+    local_id = Column(Integer, nullable=True)  # 导入时的原始 id，用于音频文件名前缀
     text_content = Column(Text, nullable=True)
     # 情绪 和 强弱
     emotion_id = Column(Integer, nullable=True)

@@ -547,9 +547,9 @@
         <!-- 导入第三方 JSON（台词） -->
         <el-dialog title="导入第三方 JSON（台词）" v-model="dialogImportThird" width="720px">
             <el-alert type="info" :closable="false" class="mb-2"
-                title="请粘贴一个 JSON 数组，每个元素形如 { role_name: string, text_content: string, emotion_name: string, strength_name: string}；提交后将直接写入该章节台词。" />
+                title="请粘贴一个 JSON 数组，每个元素形如 { id?: number, role_name: string, text_content: string, emotion_name: string, strength_name: string}；id 为可选字段，可用于表格排序，无需连续。" />
             <el-input v-model="thirdJsonText" type="textarea" :rows="14"
-                placeholder='[{"role_name":"旁白","text_content":"……","emotion_name": "平静", "strength_name": "中等"}]' />
+                placeholder='[{"id":1,"role_name":"旁白","text_content":"……","emotion_name":"平静","strength_name":"中等"},{"id":12,"role_name":"角色A","text_content":"……","emotion_name":"高兴","strength_name":"较强"}]' />
             <div class="flex items-center gap-2 mt-2">
                 <el-upload :show-file-list="false" accept=".json,application/json" :before-upload="readThirdJsonFile">
                     <el-button>从文件加载 .json</el-button>
@@ -1998,14 +1998,15 @@ async function markAllAsCompleted() {
         }
     }
 
-    // —— 阶段 2：按 line_order 重命名为 index{line_order}.wav —— //
+    // —— 阶段 2：按 local_id（优先）或 line_order 重命名 —— //
     loading.setText('正在批量修改 audio_path（阶段 2/3）...')
     let ok2 = 0, skip2 = 0, fail2 = 0
 
     for (const line of list) {
         if (!line.audio_path) { skip2++; continue }
 
-        const ord = Number.isInteger(line.line_order) ? line.line_order : null
+        // 优先使用 local_id（导入的原始 id），否则使用 line_order
+        const ord = line.local_id ?? line.line_order
         if (ord == null) { skip2++; continue }
 
         // 取台词前10字作为文件名一部分
@@ -2568,6 +2569,15 @@ const lineColumns = reactive([
         maxWidth: 60,
         align: 'center',
         cellRenderer: ({ rowData }) => rowData.line_order,
+    },
+    {
+        key: 'local_id',
+        title: '导入ID',
+        width: 70,
+        minWidth: 50,
+        maxWidth: 90,
+        align: 'center',
+        cellRenderer: ({ rowData }) => rowData.local_id ?? '-',
     },
     {
         key: 'role_id',
