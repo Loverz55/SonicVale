@@ -1,7 +1,7 @@
 
 const logger = require('./logger');
 const { decodeText } = require('./logger');
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { spawn, exec } = require('child_process')
@@ -10,19 +10,38 @@ const http = require('http')
 
 
 let backendProcess = null
+let mainWindow = null  // 保存窗口引用
 
 function startBackend() {
   const isDev = !app.isPackaged
-  const exePath = isDev
-    ? path.join(__dirname, 'main.exe') // dev 环境路径
-    : path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', 'main.exe') // prod 路径
 
-  console.log('启动后端：', exePath)
+  // ✅ 根据平台选择不同的后端可执行文件
+  // Windows: main.exe
+  // macOS(Apple Silicon): main-mac-arm64 (你需要提供这个文件)
+  // macOS(Intel): main-mac-x64 (可选)
+  // Linux: main-linux (可选)
+  let backendName = null
+  if (process.platform === 'win32') backendName = 'main.exe'
+  else if (process.platform === 'darwin') {
+    // 默认优先 arm64
+    backendName = process.arch === 'arm64' ? 'main-mac-arm64' : 'main-mac-x64'
+  } else if (process.platform === 'linux') backendName = process.arch === 'arm64' ? 'main-linux-arm64' : 'main-linux-x64'
 
-  backendProcess = spawn(exePath, [], {
-    cwd: path.dirname(exePath),
-    detached: true,  // ❗关闭主进程时能跟着退出
-    stdio: ['ignore', 'pipe', 'pipe'], // 输出日志供调试
+  if (!backendName) {
+    throw new Error(`Unsupported platform: ${process.platform} ${process.arch}`)
+  }
+
+  const backendPath = isDev
+    ? path.join(__dirname, backendName)
+    : path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', backendName)
+
+  console.log('启动后端：', backendPath)
+
+  // ✅ 生产环境从 app.asar.unpacked 执行；需保证该文件存在且有可执行权限
+  backendProcess = spawn(backendPath, [], {
+    cwd: path.dirname(backendPath),
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
   })
 
   // 日志输出（可选）
@@ -56,7 +75,7 @@ function waitForBackendReady(retries = 60, delay = 500) {
 }
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
 
     width: 1360,
     height: 765,
@@ -74,18 +93,32 @@ function createWindow() {
 
   })
 
-  win.once('ready-to-show', () => {
-    win.maximize() // ✅ 启动时自动最大化（不是全屏）
-    win.show()     // ✅ 再显示窗口
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize() // ✅ 启动时自动最大化（不是全屏）
+    mainWindow.show()     // ✅ 再显示窗口
   })
+
+  // ✅ 注册快捷键 F12 打开开发者工具（生产环境也可用）
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12') {
+      mainWindow.webContents.toggleDevTools()
+      event.preventDefault()
+    }
+    // Ctrl+Shift+I 也可以打开
+    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+      mainWindow.webContents.toggleDevTools()
+      event.preventDefault()
+    }
+  })
+
   const isDev = !app.isPackaged
   if (isDev) {
     // 开发环境：直连 Vite
-    win.loadURL('http://localhost:5173')
+    mainWindow.loadURL('http://localhost:5173')
     // win.webContents.openDevTools({ mode: 'detach' })
   } else {
     // 生产环境：直接加载打包后的静态文件，不阻塞首屏
-    win.loadFile(path.join(__dirname, '../dist/index.html'))
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
 
     // 非阻塞地检测后端是否就绪，用于日志/提示
     waitForBackendReady()

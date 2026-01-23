@@ -692,22 +692,37 @@ function restoreQueue() {
 
 // 根据后端推送更新本地行
 function applyLineUpdate(msg) {
-    const { line_id, status } = msg
+    console.log('[applyLineUpdate] 收到WebSocket消息:', JSON.stringify(msg))
+    const { line_id, status, audio_path } = msg
+    console.log('[applyLineUpdate] 解构结果: line_id=', line_id, ', status=', status, ', audio_path=', audio_path)
+
     const idx = lines.value.findIndex(l => l.id === line_id)
+    console.log('[applyLineUpdate] 查找索引结果: idx=', idx, ', lines.value.length=', lines.value.length)
+
     if (idx >= 0) {
         const old = lines.value[idx]
-        lines.value[idx] = {
+        console.log('[applyLineUpdate] 旧数据:', JSON.stringify({ id: old.id, status: old.status, audio_path: old.audio_path }))
+
+        const newLine = {
             ...old,
             status,                                  // 'pending' | 'processing' | 'done' | 'failed'
+            ...(audio_path ? { audio_path } : {}),  // 更新音频路径（如果有）
         }
+        console.log('[applyLineUpdate] 新数据:', JSON.stringify({ id: newLine.id, status: newLine.status, audio_path: newLine.audio_path }))
+
+        // ✅ 使用 splice 确保 ElTableV2 虚拟滚动表格能检测到变化并重新渲染
+        lines.value.splice(idx, 1, newLine)
+        console.log('[applyLineUpdate] splice 完成，当前 lines[idx]:', JSON.stringify({ id: lines.value[idx]?.id, status: lines.value[idx]?.status, audio_path: lines.value[idx]?.audio_path }))
+
         // ✅ 关键：当生成完成时，强制重载对应 WaveCellPro
         if (status === 'done') {
-            console.log("音频生成完成，强制重载对应 WaveCellPro")
+            console.log('[applyLineUpdate] 状态为done，调用 bumpVer(', line_id, ')')
             bumpVer(line_id)           // 让 :key 与 :src?v= 都变
-
+            console.log('[applyLineUpdate] bumpVer 调用完成，当前版本号:', getVer(line_id))
         }
 
     } else {
+        console.log('[applyLineUpdate] 未找到对应行，line_id=', line_id)
         // 当前章节列表里没有该行（例如切换了章节），这里先忽略。
         // 需要的话也可以触发一次局部刷新：activeChapterId.value && loadLines()
     }
@@ -2148,7 +2163,12 @@ import { fa } from 'element-plus/es/locales.mjs'
 const audioVer = ref(new Map())
 
 const getVer = (id) => audioVer.value.get(id) || 0
-const bumpVer = (id) => audioVer.value.set(id, getVer(id) + 1)
+const bumpVer = (id) => {
+    // 创建新 Map 来触发 Vue 响应式更新
+    const newMap = new Map(audioVer.value)
+    newMap.set(id, getVer(id) + 1)
+    audioVer.value = newMap
+}
 
 // 生成给 WaveCellPro 用的 key（强制重建）与 src（带 ?v= 反缓存）
 function waveKey(row) {
