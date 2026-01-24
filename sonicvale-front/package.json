@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron": "electron .",
-    "start": "concurrently \"npm run dev\" \"npm run electron\"",
+    "start": "start \"Dev Server\" npm run dev && start \"Electron App\" npm run electron",
     "electron-build": "vite build && electron-builder",
     "dist:win": "vite build && electron-builder --win",
     "dist:mac:arm64": "vite build && electron-builder --mac --arm64",

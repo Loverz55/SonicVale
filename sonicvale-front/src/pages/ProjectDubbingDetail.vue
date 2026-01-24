@@ -1,368 +1,682 @@
 <template>
     <div class="page-wrap">
+
         <!-- 顶部信息栏 -->
+
         <div class="header">
+
             <div class="title-side">
-                <el-button text @click="$router.back()">
+
+                <el-button text @click=" $ router.back()">
+
                     <el-icon>
+
                         <ArrowLeft />
+
                     </el-icon> 返回
+
                 </el-button>
+
                 <h2 class="proj-title">{{ project?.name || '项目名称' }}</h2>
+
                 <el-tag effect="plain" type="info">ID: {{ projectId }}</el-tag>
+
                 <el-tag effect="light" class="ml8">章节 {{ stats.chapterCount }}</el-tag>
+
                 <el-tag effect="light" class="ml8">角色 {{ stats.roleCount }}</el-tag>
+
                 <el-tag effect="light" class="ml8">台词 {{ stats.lineCount }}</el-tag>
+
                 <el-tag effect="light" type="danger" class="ml8">剩余生成：{{ queue_rest_size }}</el-tag>
+
                 <!-- ✅ 精准填充状态 -->
+
                 <el-tag class="ml8" effect="light" :type="project?.is_precise_fill == 1 ? 'success' : 'info'">
+
                     <el-icon style="margin-right: 4px;">
+
                         <CircleCheck v-if="project?.is_precise_fill == 1" />
+
                         <CircleClose v-else />
+
                     </el-icon>
+
                     精准填充：{{ project?.is_precise_fill == 1 ? '开启' : '关闭' }}
+
                 </el-tag>
 
             </div>
+
             <div class="action-side">
+
                 <el-button @click="openProjectSettings">
+
                     <el-icon>
+
                         <Setting />
+
                     </el-icon> 项目设置
+
                 </el-button>
+
                 <el-button type="primary" @click="openQueue = true" class="ml8">
+
                     <el-icon>
+
                         <Headset />
+
                     </el-icon> 消息队列
+
                 </el-button>
+
             </div>
+
         </div>
 
+
         <el-container class="main">
+
             <!-- 左侧章节 -->
+
             <el-aside width="240px" class="aside">
+
                 <div class="aside-head">
+
                     <div class="aside-title">
+
                         <div class="title-left">
+
                             <el-icon>
+
                                 <Menu />
+
                             </el-icon>
+
                             <span>所有章节</span>
+
                         </div>
 
                         <el-button circle size="small" type="primary" plain @click="scrollToActiveChapter">
+
                             <el-icon>
+
                                 <Refresh />
+
                             </el-icon>
+
                         </el-button>
+
                     </div>
-
-
-
-
-
 
                     <div class="aside-actions">
 
-
                         <el-button type="success" plain size="small" @click="handleBatchImport">
+
                             <el-icon>
+
                                 <Upload />
+
                             </el-icon>
+
                             <span>批量导入</span>
+
                         </el-button>
 
                         <el-button type="primary" plain size="small" @click="dialogNewChapter = true">
+
                             <el-icon>
+
                                 <Plus />
+
                             </el-icon>
+
                             <span>新建章节</span>
+
                         </el-button>
+
                     </div>
+
                     <el-input v-model="chapterKeyword" placeholder="搜索章节" clearable class="mb8">
-                        <template #prefix><el-icon>
+
+                        <template #prefix>
+
+                            <el-icon>
+
                                 <Search />
-                            </el-icon></template>
+
+                            </el-icon>
+
+                        </template>
+
                     </el-input>
+
                 </div>
 
-
-
                 <!-- ✅ 替换开始 -->
+
                 <!-- 让树撑满剩余高度 -->
+
                 <div class="tree-container">
+
                     <el-tree-v2 ref="chapterTreeRef" :data="filteredChapters" :props="{ value: 'id', label: 'title' }"
                         :item-size=45 :height="treeHeight" :current-node-key="activeChapterId"
                         @node-click="onSelectChapter" :highlight-current="true" class="chapter-menu">
+
                         <template #default="{ data, node }">
+
                             <el-icon>
+
                                 <Document />
+
                             </el-icon>
+
                             <div class="chapter-item" :class="{ 'is-active': activeChapterId === data.id }">
+
                                 <div class="chapter-title ellipsis">{{ data.title }}</div>
 
                                 <div class="chapter-ops">
+
                                     <el-button link @click.stop="openRenameChapter(data)" class="op-btn">
+
                                         <el-icon>
+
                                             <Edit />
+
                                         </el-icon>
+
                                     </el-button>
 
                                     <el-popconfirm title="确认删除该章节？" @confirm="deleteChapter(data)">
+
                                         <template #reference>
+
                                             <el-button link class="op-btn del-btn">
+
                                                 <el-icon>
+
                                                     <Delete />
+
                                                 </el-icon>
+
                                             </el-button>
+
                                         </template>
+
                                     </el-popconfirm>
+
                                 </div>
+
                             </div>
+
                         </template>
 
                     </el-tree-v2>
-                </div>
 
+                </div>
 
             </el-aside>
 
             <!-- 主区域 -->
 
             <el-main class="content">
+
                 <!-- 未选择章节时显示提示 -->
+
                 <div v-if="!activeChapterId" class="no-chapter-placeholder">
+
                     <el-empty description="请先在左侧选择一个章节" :image-size="160">
+
                         <template #image>
+
                             <el-icon :size="80" color="#c0c4cc">
+
                                 <Document />
+
                             </el-icon>
+
                         </template>
+
                     </el-empty>
+
                 </div>
 
                 <!-- 已选择章节时显示内容 -->
+
                 <template v-else>
-                <!-- 章节正文 -->
-                <el-card class="chapter-card">
-                    <div class="chapter-card-head">
-                        <div class="left">
-                            <el-icon>
-                                <Document />
-                            </el-icon>
-                            <span class="title">{{ currentChapter?.title || '未选择章节' }}</span>
-                            <el-tag v-if="currentChapterContent" size="small" effect="light" class="ml8">
-                                {{ currentChapterContent.length }} 字
-                            </el-tag>
-                            <el-tag v-if="currentChapterContent" size="small" effect="light" class="ml8">
-                                {{ lines.length }} 行
-                            </el-tag>
 
-                        </div>
-                        <div class="right">
-                            <el-button @click="toggleChapterCollapse" text>
-                                <el-icon>
-                                    <CaretBottom v-if="!chapterCollapsed" />
-                                    <CaretRight v-else />
-                                </el-icon>
-                                {{ chapterCollapsed ? '展开' : '收起' }}
-                            </el-button>
-                            <el-divider direction="vertical" />
-                            <el-button @click="openImportDialog" text>
-                                <el-icon>
-                                    <Upload />
-                                </el-icon> 导入/粘贴
-                            </el-button>
-                            <el-button @click="openEditDialog" text :disabled="!currentChapter">
-                                <el-icon>
-                                    <Edit />
-                                </el-icon> 编辑
-                            </el-button>
-                            <el-button type="primary" @click="splitByLLM" :disabled="!currentChapterContent">
-                                <el-icon>
-                                    <MagicStick />
-                                </el-icon> LLM 拆分为台词
-                            </el-button>
+                    <!-- 章节正文 -->
 
+                    <el-card class="chapter-card">
 
-                            <!-- 新增：导出 Prompt -->
-                            <el-button @click="exportLLMPrompt" :disabled="!currentChapter">
+                        <div class="chapter-card-head">
+
+                            <div class="left">
+
                                 <el-icon>
+
                                     <Document />
-                                </el-icon> 导出 Prompt
-                            </el-button>
 
-                            <!-- 新增：导入第三方 JSON -->
-                            <el-button @click="openImportThirdDialog" :disabled="!currentChapter">
-                                <el-icon>
-                                    <Upload />
-                                </el-icon> 导入第三方 JSON
-                            </el-button>
-                        </div>
-                    </div>
-
-                    <el-collapse-transition>
-                        <div v-show="!chapterCollapsed" class="chapter-content-box">
-                            <el-empty v-if="!currentChapterContent" description="尚未导入本章节正文，点击右上角『导入/粘贴』" />
-                            <el-scrollbar v-else class="chapter-scroll">
-                                <pre class="chapter-text">{{ currentChapterContent }}</pre>
-                            </el-scrollbar>
-                        </div>
-                    </el-collapse-transition>
-                </el-card>
-
-                <el-tabs v-model="activeTab" class="el-tabs-box">
-                    <!-- 台词管理 -->
-                    <el-tab-pane label="台词管理" name="lines">
-                        <div class="toolbar">
-                            <el-select v-model="roleFilter" clearable filterable placeholder="按角色筛选" class="w220">
-                                <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
-                            </el-select>
-                            <el-input v-model="lineKeyword" placeholder="搜索台词文本" clearable class="w300 ml8" />
-                            <el-button @click="loadLines" class="ml8">
-                                <el-icon>
-                                    <Refresh />
-                                </el-icon> 刷新
-                            </el-button>
-                            <el-button type="primary" @click="generateAll" class="ml8">
-                                <el-icon>
-                                    <Headset />
-                                </el-icon> 批量生成音频
-                            </el-button>
-                            <el-button type="warning" @click="batchAddTailSilence" class="ml8">
-                                <el-icon>
-                                    <Mute />
                                 </el-icon>
-                                批量添加间隔时间
-                            </el-button>
 
-                            <el-button type="success" @click="markAllAsCompleted">
-                                <el-icon>
-                                    <Check />
-                                </el-icon> 导出配音与字幕
-                            </el-button>
-                            <el-button type="danger" @click="handleCorrectSubtitles">
-                                <el-icon>
-                                    <Edit />
-                                </el-icon>
-                                矫正字幕
-                            </el-button>
+                                <span class="title">{{ currentChapter?.title || '未选择章节' }}</span>
 
-                            <el-switch v-model="playMode" active-text="顺序播放" inactive-text="单条播放"
-                                active-value="sequential" inactive-value="single" />
+                                <el-tag v-if="currentChapterContent" size="small" effect="light" class="ml8">
 
+                                    {{ currentChapterContent.length }} 字
 
-                        </div>
+                                </el-tag>
 
-                        <!-- ✅ 新版：虚拟滚动表格 -->
-                        <div class="table-box">
-                            <el-auto-resizer v-slot="{ height, width }">
-                                <el-table-v2 :data="displayedLines" :columns="lineColumns" :row-height="150" fixed
-                                    :width="width" :height="height" row-key="id" class="lines-table" />
-                            </el-auto-resizer>
-                        </div>
-                    </el-tab-pane>
+                                <el-tag v-if="currentChapterContent" size="small" effect="light" class="ml8">
 
-                    <!-- 角色库 -->
-                    <el-tab-pane label="角色库" name="roles">
+                                    {{ lines.length }} 行
 
-                        <div class="toolbar">
-                            <el-input v-model="roleKeyword" placeholder="搜索角色" clearable class="w260" />
-                            <el-button @click="loadRoles" class="ml8">
-                                <el-icon>
-                                    <Refresh />
-                                </el-icon> 刷新
-                            </el-button>
-                            <el-button class="ml8" type="primary" @click="$router.push('/voices')">
-                                <el-icon>
-                                    <Plus />
-                                </el-icon> 管理音色库
-                            </el-button>
-                            <el-button type="success" @click="openCreateRole">
-                                <el-icon>
-                                    <Plus />
-                                </el-icon> 新建角色
-                            </el-button>
-                            <el-tooltip placement="top" content="此功能为测试版，结果可能不稳定，并且效果依赖于音色的标签，因此尽可能完善丰富音色标签。">
-                                <el-button type="danger" @click="addSmartRoleAndVoice">
+                                </el-tag>
+
+                            </div>
+
+                            <div class="right">
+
+                                <el-button @click="toggleChapterCollapse" text>
+
                                     <el-icon>
-                                        <MagicStick />
+
+                                        <CaretBottom v-if="!chapterCollapsed" />
+
+                                        <CaretRight v-else />
+
                                     </el-icon>
-                                    智能匹配音色（Beta）
+
+                                    {{ chapterCollapsed ? '展开' : '收起' }}
+
                                 </el-button>
-                            </el-tooltip>
 
+                                <el-divider direction="vertical" />
+
+                                <el-button @click="openImportDialog" text>
+
+                                    <el-icon>
+
+                                        <Upload />
+
+                                    </el-icon> 导入/粘贴
+
+                                </el-button>
+
+                                <el-button @click="openEditDialog" text :disabled="!currentChapter">
+
+                                    <el-icon>
+
+                                        <Edit />
+
+                                    </el-icon> 编辑
+
+                                </el-button>
+
+                                <el-button type="primary" @click="splitByLLM" :disabled="!currentChapterContent">
+
+                                    <el-icon>
+
+                                        <MagicStick />
+
+                                    </el-icon> LLM 拆分为台词
+
+                                </el-button>
+
+                                <!-- 新增：导出 Prompt -->
+
+                                <el-button @click="exportLLMPrompt" :disabled="!currentChapter">
+
+                                    <el-icon>
+
+                                        <Document />
+
+                                    </el-icon> 导出 Prompt
+
+                                </el-button>
+
+                                <!-- 新增：导入第三方 JSON -->
+
+                                <el-button @click="openImportThirdDialog" :disabled="!currentChapter">
+
+                                    <el-icon>
+
+                                        <Upload />
+
+                                    </el-icon> 导入第三方 JSON
+
+                                </el-button>
+
+                            </div>
 
                         </div>
 
-                        <div class="role-grid">
+                        <el-collapse-transition>
 
-                            <el-card v-for="r in displayedRoles" :key="r.id" class="role-card" shadow="hover">
-                                <!-- src/views/YourView.vue，角色卡片组件中 -->
-                                <div class="role-card-head">
-                                    <el-avatar :size="40">{{ r.name.slice(0, 1) }}</el-avatar>
-                                    <div class="role-meta">
-                                        <div class="role-title">{{ r.name }}</div>
-                                        <div class="role-desc ellipsis-2">{{ r.description || '—' }}</div>
+                            <div v-show="!chapterCollapsed" class="chapter-content-box">
+
+                                <el-empty v-if="!currentChapterContent" description="尚未导入本章节正文，点击右上角『导入/粘贴』" />
+
+                                <el-scrollbar v-else class="chapter-scroll">
+
+                                    <pre class="chapter-text">{{ currentChapterContent }}</pre>
+
+                                </el-scrollbar>
+
+                            </div>
+
+                        </el-collapse-transition>
+
+                    </el-card>
+
+
+                    <el-tabs v-model="activeTab" class="el-tabs-box">
+
+                        <!-- 台词管理 -->
+
+                        <el-tab-pane label="台词管理" name="lines">
+
+                            <div class="toolbar">
+
+                                <el-select v-model="roleFilter" clearable filterable placeholder="按角色筛选" class="w220">
+
+                                    <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
+
+                                </el-select>
+
+                                <el-input v-model="lineKeyword" placeholder="搜索台词文本" clearable class="w300 ml8" />
+
+                                <el-button @click="loadLines" class="ml8">
+
+                                    <el-icon>
+
+                                        <Refresh />
+
+                                    </el-icon> 刷新
+
+                                </el-button>
+
+                                <el-button type="primary" @click="generateAll" class="ml8">
+
+                                    <el-icon>
+
+                                        <Headset />
+
+                                    </el-icon> 批量生成音频
+
+                                </el-button>
+
+                                <el-button type="warning" @click="batchAddTailSilence" class="ml8">
+
+                                    <el-icon>
+
+                                        <Mute />
+
+                                    </el-icon> 批量添加间隔时间
+
+                                </el-button>
+
+                                <el-button type="success" @click="markAllAsCompleted">
+
+                                    <el-icon>
+
+                                        <Check />
+
+                                    </el-icon> 导出配音与字幕
+
+                                </el-button>
+
+                                <el-button type="danger" @click="handleCorrectSubtitles">
+
+                                    <el-icon>
+
+                                        <Edit />
+
+                                    </el-icon> 矫正字幕
+
+                                </el-button>
+
+                                <el-switch v-model="playMode" active-text="顺序播放" inactive-text="单条播放"
+                                    active-value="sequential" inactive-value="single" />
+
+                            </div>
+
+
+                            <!-- ✅ 新增：批量操作区 -->
+
+                            <div class="batch-operation-panel mb-2" v-if="selectedLineIds.length > 0">
+
+                                <div class="batch-info">
+
+                                    已选中 {{ selectedLineIds.length }} 条台词
+
+                                </div>
+
+                                <div class="batch-controls">
+
+                                    <el-select v-model="batchRoleId" placeholder="批量设置角色" class="mr-2">
+
+                                        <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
+
+                                    </el-select>
+
+                                    <el-select v-model="batchEmotionId" placeholder="批量设置情绪" class="mr-2">
+
+                                        <el-option v-for="e in emotionOptions" :key="e.value" :label="e.label"
+                                            :value="e.value" />
+
+                                    </el-select>
+
+                                    <el-select v-model="batchStrengthId" placeholder="批量设置强度" class="mr-2">
+
+                                        <el-option v-for="s in strengthOptions" :key="s.value" :label="s.label"
+                                            :value="s.value" />
+
+                                    </el-select>
+
+                                    <el-button type="primary" @click="applyBatchChanges" :disabled="!hasBatchSelection">
+
+                                        应用更改
+
+                                    </el-button>
+
+                                    <el-button @click="clearSelection">
+
+                                        清空选择
+
+                                    </el-button>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- ✅ 新版：虚拟滚动表格 -->
+
+                            <div class="table-box">
+
+                                <el-auto-resizer v-slot="{ height, width }">
+
+                                    <!-- 为 el-table-v2 添加 selection 列 -->
+
+                                    <el-table-v2 :data="displayedLines" :columns="lineColumns" :row-height="150" fixed
+                                        :width="width" :height="height" row-key="id" class="lines-table"
+                                        @row-click="handleRowClick" :row-class-name="getRowClassName" />
+
+                                </el-auto-resizer>
+
+                            </div>
+
+                        </el-tab-pane>
+
+                        <!-- 角色库 -->
+
+                        <el-tab-pane label="角色库" name="roles">
+
+                            <div class="toolbar">
+
+                                <el-input v-model="roleKeyword" placeholder="搜索角色" clearable class="w260" />
+
+                                <el-button @click="loadRoles" class="ml8">
+
+                                    <el-icon>
+
+                                        <Refresh />
+
+                                    </el-icon> 刷新
+
+                                </el-button>
+
+                                <el-button class="ml8" type="primary" @click=" $ router.push('/voices')">
+
+                                    <el-icon>
+
+                                        <Plus />
+
+                                    </el-icon> 管理音色库
+
+                                </el-button>
+
+                                <el-button type="success" @click="openCreateRole">
+
+                                    <el-icon>
+
+                                        <Plus />
+
+                                    </el-icon> 新建角色
+
+                                </el-button>
+
+                                <el-tooltip placement="top" content="此功能为测试版，结果可能不稳定，并且效果依赖于音色的标签，因此尽可能完善丰富音色标签。">
+
+                                    <el-button type="danger" @click="addSmartRoleAndVoice">
+
+                                        <el-icon>
+
+                                            <MagicStick />
+
+                                        </el-icon> 智能匹配音色（Beta）
+
+                                    </el-button>
+
+                                </el-tooltip>
+
+                            </div>
+
+                            <div class="role-grid">
+
+                                <el-card v-for="r in displayedRoles" :key="r.id" class="role-card" shadow="hover">
+
+                                    <!-- src/views/YourView.vue，角色卡片组件中 -->
+
+                                    <div class="role-card-head">
+
+                                        <el-avatar :size="40">{{ r.name.slice(0, 1) }}</el-avatar>
+
+                                        <div class="role-meta">
+
+                                            <div class="role-title">{{ r.name }}</div>
+
+                                            <div class="role-desc ellipsis-2">{{ r.description || '—' }}</div>
+
+                                        </div>
+
+                                        <!-- 新增：操作按钮 -->
+
+                                        <div class="role-actions">
+
+                                            <el-tooltip content="重命名">
+
+                                                <el-button link @click="openRenameRole(r)">
+
+                                                    <el-icon>
+
+                                                        <Edit />
+
+                                                    </el-icon>
+
+                                                </el-button>
+
+                                            </el-tooltip>
+
+                                            <el-tooltip content="删除">
+
+                                                <el-popconfirm title="确定删除该角色？" @confirm="deleteRole(r)">
+
+                                                    <template #reference>
+
+                                                        <el-button link type="danger">
+
+                                                            <el-icon>
+
+                                                                <Delete />
+
+                                                            </el-icon>
+
+                                                        </el-button>
+
+                                                    </template>
+
+                                                </el-popconfirm>
+
+                                            </el-tooltip>
+
+                                        </div>
+
                                     </div>
-                                    <!-- 新增：操作按钮 -->
-                                    <div class="role-actions">
-                                        <el-tooltip content="重命名">
-                                            <el-button link @click="openRenameRole(r)">
+
+                                    <div class="bind-row">
+
+                                        <!-- 左边：标签 + 试听 -->
+
+                                        <div class="bind-left">
+
+                                            <el-tag v-if="getRoleVoiceName(r.id)" type="danger">
+
+                                                {{ getRoleVoiceName(r.id) }}
+
+                                            </el-tag>
+
+                                            <el-tag v-else type="info">未绑定音色</el-tag>
+
+                                            <el-button circle plain :disabled="!roleVoiceMap[r.id]"
+                                                @click="toggleVoicePlay(roleVoiceMap[r.id])"
+                                                :title="isPlaying && currentVoiceId === roleVoiceMap[r.id] ? '暂停' : '试听音色'">
+
                                                 <el-icon>
-                                                    <Edit />
+
+                                                    <Headset />
+
                                                 </el-icon>
+
                                             </el-button>
-                                        </el-tooltip>
-                                        <el-tooltip content="删除">
-                                            <el-popconfirm title="确定删除该角色？" @confirm="deleteRole(r)">
-                                                <template #reference>
-                                                    <el-button link type="danger"><el-icon>
-                                                            <Delete />
-                                                        </el-icon></el-button>
-                                                </template>
-                                            </el-popconfirm>
-                                        </el-tooltip>
-                                    </div>
-                                </div>
 
+                                        </div>
 
-                                <div class="bind-row">
-                                    <!-- 左边：标签 + 试听 -->
-                                    <div class="bind-left">
-                                        <el-tag v-if="getRoleVoiceName(r.id)" type="danger">
-                                            {{ getRoleVoiceName(r.id) }}
-                                        </el-tag>
-                                        <el-tag v-else type="info">未绑定音色</el-tag>
+                                        <!-- 右边：选择音色 -->
 
-                                        <el-button circle plain :disabled="!roleVoiceMap[r.id]"
-                                            @click="toggleVoicePlay(roleVoiceMap[r.id])"
-                                            :title="isPlaying && currentVoiceId === roleVoiceMap[r.id] ? '暂停' : '试听音色'">
-                                            <el-icon>
-                                                <Headset />
-                                            </el-icon>
-                                        </el-button>
+                                        <div class="bind-right">
+
+                                            <el-button :type="getRoleVoiceName(r.id) ? 'primary' : 'danger'"
+                                                size="small" @click="openVoiceDialog(r)">
+
+                                                {{ getRoleVoiceName(r.id) ? '更换音色' : '绑定音色' }}
+
+                                            </el-button>
+
+                                        </div>
 
                                     </div>
 
-                                    <!-- 右边：选择音色 -->
-                                    <div class="bind-right">
-                                        <el-button :type="getRoleVoiceName(r.id) ? 'primary' : 'danger'" size="small"
-                                            @click="openVoiceDialog(r)">
-                                            {{ getRoleVoiceName(r.id) ? '更换音色' : '绑定音色' }}
-                                        </el-button>
+                                </el-card>
 
-                                    </div>
-                                </div>
+                            </div>
 
+                        </el-tab-pane>
 
-                            </el-card>
-                        </div>
+                    </el-tabs>
 
-
-                    </el-tab-pane>
-                </el-tabs>
                 </template>
+
             </el-main>
 
         </el-container>
@@ -528,11 +842,11 @@
                 </el-form-item>
                 <el-form-item label="项目根路径" prop="project_root_path">
                     <el-input v-model="settingsForm.project_root_path" readonly
-                        placeholder="例如：D:\\Works\\MyProject 或 /Users/me/Projects/demo" >
+                        placeholder="例如：D:\\Works\\MyProject 或 /Users/me/Projects/demo">
                         <template #append>
                             <el-button @click="openRootDir">打开目录</el-button>
                         </template>
-                        </el-input>
+                    </el-input>
                 </el-form-item>
 
 
@@ -663,6 +977,238 @@ const queue_rest_size = ref(0) // 后端返回的队列剩余长度
 let ws = null
 let wsRetry = 0
 let reconnectTimer = null
+
+// --- 新增：多选逻辑 ---
+
+const selectedLineIds = ref(new Set()) // 存储选中行的 ID
+// 用于批量操作的变量
+
+const batchRoleId = ref(null)
+const batchEmotionId = ref(null)
+const batchStrengthId = ref(null)
+
+// 计算属性：是否有有效的批量选择
+const hasBatchSelection = computed(() => {
+    return selectedLineIds.value.size > 0 && (batchRoleId.value || batchEmotionId.value || batchStrengthId.value)
+})
+
+// --- 新增：多选逻辑 ---
+
+const selectedLineIds = ref(new Set()) // 存储选中行的 ID
+
+
+// 用于批量操作的变量
+
+const batchRoleId = ref(null)
+
+const batchEmotionId = ref(null)
+
+const batchStrengthId = ref(null)
+
+
+// 计算属性：是否有有效的批量选择
+
+const hasBatchSelection = computed(() => {
+
+    return selectedLineIds.value.size > 0 && (batchRoleId.value || batchEmotionId.value || batchStrengthId.value)
+
+})
+
+
+// 为 ElTableV2 添加一个选择列
+
+const selectColumn = {
+
+    key: 'selection',
+
+    title: '',
+
+    width: 50,
+
+    minWidth: 50,
+
+    maxWidth: 50,
+
+    align: 'center',
+
+    cellRenderer: ({ rowData }) => {
+
+        const isSelected = selectedLineIds.value.has(rowData.id);
+
+        return h(
+
+            'input',
+
+            {
+
+                type: 'checkbox',
+
+                checked: isSelected,
+
+                onClick: (e) => {
+
+                    e.stopPropagation(); // 防止触发行点击
+
+                    toggleRowSelection(rowData.id, !isSelected);
+
+                },
+
+            }
+
+        );
+
+    },
+
+};
+
+
+// 获取行类名，用于高亮选中行
+
+const getRowClassName = ({ row }) => {
+
+    return selectedLineIds.value.has(row.id) ? 'selected-row' : '';
+
+};
+
+
+// 行点击处理函数
+
+const handleRowClick = (rowData) => {
+
+    toggleRowSelection(rowData.id, !selectedLineIds.value.has(rowData.id));
+
+};
+
+
+// 切换行选择状态
+
+const toggleRowSelection = (id, isSelected) => {
+
+    if (isSelected) {
+
+        selectedLineIds.value.add(id);
+
+    } else {
+
+        selectedLineIds.value.delete(id);
+
+    }
+
+};
+
+
+// 清空选择
+
+const clearSelection = () => {
+
+    selectedLineIds.value.clear();
+
+    batchRoleId.value = null;
+
+    batchEmotionId.value = null;
+
+    batchStrengthId.value = null;
+
+};
+
+
+// 应用批量更改
+
+const applyBatchChanges = async () => {
+
+    if (selectedLineIds.value.size === 0) {
+
+        ElMessage.warning('请先选择要修改的台词');
+
+        return;
+
+    }
+
+
+    const updates = [];
+
+    const updatePayload = {};
+
+
+    if (batchRoleId.value !== null) {
+
+        updatePayload.role_id = batchRoleId.value;
+
+    }
+
+    if (batchEmotionId.value !== null) {
+
+        updatePayload.emotion_id = batchEmotionId.value;
+
+    }
+
+    if (batchStrengthId.value !== null) {
+
+        updatePayload.strength_id = batchStrengthId.value;
+
+    }
+
+
+    // 准备批量更新数据
+
+    for (const id of selectedLineIds.value) {
+
+        updates.push({
+
+            id: id,
+
+            ...updatePayload
+
+        });
+
+    }
+
+
+    try {
+
+        const res = await lineAPI.batchUpdateLines(updates); // 假设后端有一个批量更新接口
+
+        if (res?.code === 200) {
+
+            ElMessage.success(`成功更新  $ {updates.length} 条台词`);
+
+            // 更新本地数据
+
+            lines.value.forEach(line => {
+
+                if (selectedLineIds.value.has(line.id)) {
+
+                    if (updatePayload.role_id !== undefined) line.role_id = updatePayload.role_id;
+
+                    if (updatePayload.emotion_id !== undefined) line.emotion_id = updatePayload.emotion_id;
+
+                    if (updatePayload.strength_id !== undefined) line.strength_id = updatePayload.strength_id;
+
+                    // 重置完成状态
+
+                    if (line.is_done !== 0) {
+
+                        updateLineIsDone(line, 0);
+
+                        line.is_done = 0;
+
+                    }
+
+                }
+
+            });
+
+            clearSelection(); // 成功后清空选择和选项
+        } else {
+            ElMessage.error(res?.message || '批量更新失败');
+        }
+    } catch (error) {
+        console.error('批量更新请求失败:', error);
+        ElMessage.error('批量更新失败，请检查网络或联系开发者');
+
+    }
+
+};
 
 function wsUrl() {
     const httpBase = service.defaults.baseURL // 例如 'http://127.0.0.1:8000/'
@@ -924,7 +1470,7 @@ watch(
     }
 )
 
-async function openRootDir  (){
+async function openRootDir() {
     await native.openFolder(settingsForm.value.project_root_path)
 }
 // 保存=更新项目（直接调用你的 update 接口）
@@ -2557,377 +3103,641 @@ function handleEnded({ handle, id }) {
 // =============== ElTableV2 列配置 ===============
 // ✅ 通用高亮包装函数（放在 <script setup> 顶部或表格定义前）
 const statusFilter = ref('')
+
 const wrapCellHighlight = (condition, children) => {
-    return h(
-        'div',
-        {
-            style: {
-                width: '100%',
-                height: '100%',
-                backgroundColor: condition ? '#fde2e2' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'column',
-                gap: '4px',
-                boxSizing: 'border-box',
-                padding: '4px',
-                borderRadius: '4px',
-                transition: 'background-color 0.3s ease',
-            },
-        },
-        children
-    )
+
+  return h(
+
+    'div',
+
+    {
+
+      style: {
+
+        width: '100%',
+
+        height: '100%',
+
+        backgroundColor: condition ? '#fde2e2' : 'transparent',
+
+        display: 'flex',
+
+        alignItems: 'center',
+
+        justifyContent: 'center',
+
+        flexDirection: 'column',
+
+        gap: '4px',
+
+        boxSizing: 'border-box',
+
+        padding: '4px',
+
+        borderRadius: '4px',
+
+        transition: 'background-color 0.3s ease',
+
+      },
+
+    },
+
+    children
+
+  )
+
 }
+
+
 import { reactive } from 'vue'
-const lineColumns = reactive([
-    {
-        key: 'line_order',
-        title: '序',
-        width: 60,
-        minWidth: 40,
-        maxWidth: 60,
-        align: 'center',
-        cellRenderer: ({ rowData }) => rowData.line_order,
-    },
-    {
-        key: 'local_id',
-        title: '导入ID',
-        width: 70,
-        minWidth: 50,
-        maxWidth: 90,
-        align: 'center',
-        cellRenderer: ({ rowData }) => rowData.local_id ?? '-',
-    },
-    {
-        key: 'role_id',
-        title: '角色',
-        width: 100,
-        minWidth: 50,
-        maxWidth: 150,
-        align: 'center',
-        cellRenderer: ({ rowData }) =>
-            wrapCellHighlight(!rowData.role_id, [
-                h(
-                    ElSelect,
-                    {
-                        modelValue: rowData.role_id,
-                        filterable: true,
-                        clearable: true,
-                        size: 'small',
-                        disabled: roleColumnLocked.value,
-                        placeholder: '选择角色',
-                        style: { width: '100%' },
-                        onChange: (val) => {
-                            rowData.role_id = val
-                            updateLineRole(rowData)
-                            // 角色切换后，变更状态为未完成
-                            // 2️⃣ 切换角色后自动置为未完成
-                            if (rowData.is_done !== 0) {
 
-                                // 3️⃣ 同步更新后端状态
-                                updateLineIsDone(rowData, 0)
-                                rowData.is_done = 0
-                            }
-                        },
-                    },
-                    () => roles.value.map((r) =>
-                        h(ElOption, { label: r.name, value: r.id })
-                    )
-                ),
-                h(
-                    ElTag,
-                    {
-                        size: 'small',
-                        type: getRoleVoiceName(rowData.role_id)
-                            ? 'success'
-                            : 'info',
-                    },
-                    () => getRoleVoiceName(rowData.role_id) || '未绑定音色'
-                ),
-            ]),
-    },
-    {
-        key: 'text_content',
-        title: '台词文本',
-        width: 250,
-        minWidth: 100,
-        maxWidth: 300,
-        align: 'center',
-        cellRenderer: ({ rowData }) =>
-            wrapCellHighlight(
-                !(rowData.tempText?.trim() || rowData.text_content?.trim()),
-                [
-                    h(ElInput, {
-                        modelValue: rowData.tempText ?? rowData.text_content,
-                        'onUpdate:modelValue': (val) => (rowData.tempText = val),
-                        size: 'small',
-                        type: 'textarea',
-                        autosize: { minRows: 2, maxRows: 9 }, // ✅ 只用 autosize 控高
-                        placeholder: '输入台词内容',
-                        disabled: textLocked.value,
+// ✅ 在 reactive 外部定义 selectColumn，然后将其与其他列合并
 
-                        onBlur: () => updateLineText(rowData),
+const lineColumns = computed(() => [
 
-                    }),
-                ]
-            ),
-    }
-    ,
-    {
-        key: 'emotion_id',
-        title: '情绪',
-        width: 120,
-        minWidth: 80,
-        maxWidth: 150,
-        align: 'center',
-        cellRenderer: ({ rowData }) =>
-            wrapCellHighlight(!rowData.emotion_id, [
-                h(
-                    ElSelect,
-                    {
-                        modelValue: rowData.emotion_id,
-                        size: 'small',
-                        placeholder: '选择情绪',
-                        disabled: emotionLocked.value,
-                        clearable: true,
-                        style: { width: '100%' },
-                        onChange: (val) => {
-                            rowData.emotion_id = val
-                            updateLineEmotion(rowData)
-                            if (rowData.is_done !== 0) {
+  selectColumn, // 添加选择列
 
-                                // 3️⃣ 同步更新后端状态
-                                updateLineIsDone(rowData, 0)
-                                rowData.is_done = 0
-                            }
-                        },
-                    },
-                    () =>
-                        emotionOptions.value.map((e) =>
-                            h(ElOption, { label: e.label, value: e.value })
-                        )
-                ),
-            ]),
-    },
-    {
-        key: 'strength_id',
-        title: '强度',
-        width: 120,
-        minWidth: 80,
-        maxWidth: 150,
-        align: 'center',
-        cellRenderer: ({ rowData }) =>
-            wrapCellHighlight(!rowData.strength_id, [
-                h(
-                    ElSelect,
-                    {
-                        modelValue: rowData.strength_id,
-                        size: 'small',
-                        placeholder: '选择强度',
-                        disabled: strengthLocked.value,
-                        clearable: true,
-                        style: { width: '100%' },
-                        onChange: (val) => {
-                            rowData.strength_id = val
-                            updateLineStrength(rowData)
-                            if (rowData.is_done !== 0) {
-                                rowData.is_done = 0
-                                // 3️⃣ 同步更新后端状态
-                                updateLineIsDone(rowData, 0)
-                            }
-                        },
-                    },
-                    () =>
-                        strengthOptions.value.map((s) =>
-                            h(ElOption, { label: s.label, value: s.value })
-                        )
-                ),
-            ]),
-    },
-    {
-        key: 'audio',
-        title: '试听 / 处理',
-        align: 'center',
-        width: 500,
-        minWidth: 300,
-        maxWidth: 500,
-        cellRenderer: ({ rowData }) =>
-            h('div', {
-                style: {
-                    width: '100%',
-                    height: '100%',           // ✅ 填满整行
-                    display: 'flex',          // ✅ 居中显示
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                },
-            }, [
-                rowData.audio_path
-                    ? h(WaveCellPro, {
-                        key: waveKey(rowData),
-                        src: waveSrc(rowData),
-                        speed: rowData._procSpeed || 1.0,
-                        volume2x: rowData._procVolume ?? 1.0,
-                        'start-ms': rowData.start_ms,
-                        'end-ms': rowData.end_ms,
-                        style: {
+  {
 
-                            maxHeight: '100%',   // ✅ 防止溢出
-                            objectFit: 'contain',
-                        },
-                        onReady: (p) => registerWave({ handle: p, id: rowData.id }),
-                        onRequestStopOthers: stopOthers,
-                        onDispose: unregisterWave,
-                        onConfirm: (p) => confirmAndProcess(rowData, p),
-                        onEnded: (p) => handleEnded({ p, id: rowData.id }),
-                    })
-                    : h(ElText, { type: 'info' }, () => '无音频'),
-            ]),
-    },
+    key: 'line_order',
 
-    {
-        key: 'edit',
-        title: '操作',
-        width: 150,
-        minWidth: 100,
-        maxWidth: 200,
-        align: 'center',
-        headerCellRenderer: () =>
-            h(
-                ElButton,
-                { size: 'small', type: 'success', plain: true, onClick: insertAtTop },
-                () => '首行插入'
-            ),
-        cellRenderer: ({ rowData }) =>
-            h('div', { style: 'display:flex;justify-content:center;gap:4px;' }, [
-                h(
-                    ElButton,
-                    {
-                        size: 'small',
-                        type: 'primary',
-                        plain: true,
-                        onClick: () => insertBelow(rowData),
-                    },
-                    () => '插入'
-                ),
-                h(
-                    ElPopconfirm,
-                    {
-                        title: '确认删除该台词？',
-                        onConfirm: () => deleteLine(rowData),
-                    },
-                    {
-                        reference: () =>
-                            h(
-                                ElButton,
-                                { size: 'small', type: 'danger', plain: true },
-                                () => '删除'
-                            ),
-                    }
-                ),
-            ]),
-    },
-    {
-        key: 'status',
-        title: '状态',
-        width: 100,
-        minWidth: 100,
-        maxWidth: 150,
-        align: 'center',
-        fixed: 'right',
-        // ✅ 自定义表头，包含“状态”文字 + 下拉框
-        headerCellRenderer: () =>
-            h(
-                'div',
-                { class: 'status-header' },
-                [
-                    // 左侧文字标签
-                    h('span', { class: 'status-title' }, '状态'),
+    title: '序',
 
-                    // 状态筛选下拉框
-                    h(
-                        ElSelect,
-                        {
-                            modelValue: statusFilter.value,
-                            placeholder: '全部',
-                            clearable: true,
-                            size: 'small',
-                            class: 'status-select',
-                            onChange: (val) => (statusFilter.value = val),
-                        },
-                        () => [
-                            h(ElOption, { label: '全部', value: '' }),
-                            h(ElOption, { label: '未生成', value: 'pending' }),
-                            h(ElOption, { label: '生成中', value: 'processing' }),
-                            h(ElOption, { label: '已生成', value: 'done' }),
-                            h(ElOption, { label: '生成失败', value: 'failed' }),
-                        ]
-                    ),
-                ]
-            ),
+    width: 60,
 
-        cellRenderer: ({ rowData }) =>
-            h(ElTag, { type: statusType(rowData.status) }, () =>
-                statusText(rowData.status)
-            ),
-    },
-    {
-        key: 'actions',
-        title: '操作',
-        width: 100,
-        align: 'center',
-        fixed: 'right',
-        cellRenderer: ({ rowData }) => {
-            return h(
-                'div',
-                {
-                    style: `
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-        `,
-                },
-                [// 🎧 “生成配音”按钮
-                    h(
-                        ElButton,
-                        {
-                            size: 'small',
-                            type: 'primary',
-                            disabled: !canGenerate(rowData),
-                            onClick: () => generateOne(rowData),
-                        },
-                        () => '生成配音'
-                    ),
-                    // ✅ 绿色的 is_done 开关
-                    h(ElSwitch, {
-                        modelValue: rowData.is_done === 1 ? 'done' : 'undone',
-                        activeText: '已完成',
-                        inactiveText: '未完成',
-                        activeValue: 'done',
-                        inactiveValue: 'undone',
-                        inlinePrompt: true,
-                        size: 'small',
-                        style: {
-                            '--el-switch-on-color': '#67C23A',  // ✅ 激活时绿色
-                            '--el-switch-off-color': '#dcdfe6', // ✅ 未激活灰色
-                        },
-                        'onUpdate:modelValue': (val) => {
-                            const newVal = val === 'done' ? 1 : 0
-                            if (rowData.is_done === newVal) return
-                            rowData.is_done = newVal
-                            console.log('切换台词完成状态:', rowData.is_done)
-                            updateLineIsDone(rowData, newVal)
-                        },
-                    }),
+    minWidth: 40,
 
+    maxWidth: 60,
 
-                ]
+    align: 'center',
+
+    cellRenderer: ({ rowData }) => rowData.line_order,
+
+  },
+
+  {
+
+    key: 'local_id',
+
+    title: '导入ID',
+
+    width: 70,
+
+    minWidth: 50,
+
+    maxWidth: 90,
+
+    align: 'center',
+
+    cellRenderer: ({ rowData }) => rowData.local_id ?? '-',
+
+  },
+
+  {
+
+    key: 'role_id',
+
+    title: '角色',
+
+    width: 100,
+
+    minWidth: 50,
+
+    maxWidth: 150,
+
+    align: 'center',
+
+    cellRenderer: ({ rowData }) => wrapCellHighlight(
+
+      !rowData.role_id,
+
+      [
+
+        h(
+
+          ElSelect,
+
+          {
+
+            modelValue: rowData.role_id,
+
+            filterable: true,
+
+            clearable: true,
+
+            size: 'small',
+
+            disabled: roleColumnLocked.value,
+
+            placeholder: '选择角色',
+
+            style: { width: '100%' },
+
+            onChange: (val) => {
+
+              rowData.role_id = val
+
+              updateLineRole(rowData)
+
+              // 2️⃣ 切换角色后自动置为未完成
+
+              if (rowData.is_done !== 0) {
+
+                // 3️⃣ 同步更新后端状态
+
+                updateLineIsDone(rowData, 0)
+
+                rowData.is_done = 0
+
+              }
+
+            },
+
+          },
+
+          () =>
+
+            roles.value.map((r) =>
+
+              h(ElOption, { label: r.name, value: r.id })
+
             )
+
+        ),
+
+        h(
+
+          ElTag,
+
+          {
+
+            size: 'small',
+
+            type: getRoleVoiceName(rowData.role_id) ? 'success' : 'info',
+
+          },
+
+          () => getRoleVoiceName(rowData.role_id) || '未绑定音色'
+
+        ),
+
+      ]
+
+    ),
+
+  },
+
+  {
+
+    key: 'text_content',
+
+    title: '台词文本',
+
+    width: 250,
+
+    minWidth: 100,
+
+    maxWidth: 300,
+
+    align: 'center',
+
+    cellRenderer: ({ rowData }) => wrapCellHighlight(
+
+      !(rowData.tempText?.trim() || rowData.text_content?.trim()),
+
+      [
+
+        h(ElInput, {
+
+          modelValue: rowData.tempText ?? rowData.text_content,
+
+          'onUpdate:modelValue': (val) => (rowData.tempText = val),
+
+          size: 'small',
+
+          type: 'textarea',
+
+          autosize: { minRows: 2, maxRows: 9 }, // ✅ 只用 autosize 控高
+
+          placeholder: '输入台词内容',
+
+          disabled: textLocked.value,
+
+          onBlur: () => updateLineText(rowData),
+
+        }),
+
+      ]
+
+    ),
+
+  },
+
+  {
+
+    key: 'emotion_id',
+
+    title: '情绪',
+
+    width: 120,
+
+    minWidth: 80,
+
+    maxWidth: 150,
+
+    align: 'center',
+
+    cellRenderer: ({ rowData }) => wrapCellHighlight(
+
+      !rowData.emotion_id,
+
+      [
+
+        h(
+
+          ElSelect,
+
+          {
+
+            modelValue: rowData.emotion_id,
+
+            size: 'small',
+
+            placeholder: '选择情绪',
+
+            disabled: emotionLocked.value,
+
+            clearable: true,
+
+            style: { width: '100%' },
+
+            onChange: (val) => {
+
+              rowData.emotion_id = val
+
+              updateLineEmotion(rowData)
+
+              if (rowData.is_done !== 0) {
+
+                rowData.is_done = 0 // 3️⃣ 同步更新后端状态
+
+                updateLineIsDone(rowData, 0)
+
+              }
+
+            },
+
+          },
+
+          () =>
+
+            emotionOptions.value.map((e) =>
+
+              h(ElOption, { label: e.label, value: e.value })
+
+            )
+
+        ),
+
+      ]
+
+    ),
+
+  },
+
+  {
+
+    key: 'strength_id',
+
+    title: '强度',
+
+    width: 120,
+
+    minWidth: 80,
+
+    maxWidth: 150,
+
+    align: 'center',
+
+    cellRenderer: ({ rowData }) => wrapCellHighlight(
+
+      !rowData.strength_id,
+
+      [
+
+        h(
+
+          ElSelect,
+
+          {
+
+            modelValue: rowData.strength_id,
+
+            size: 'small',
+
+            placeholder: '选择强度',
+
+            disabled: strengthLocked.value,
+
+            clearable: true,
+
+            style: { width: '100%' },
+
+            onChange: (val) => {
+
+              rowData.strength_id = val
+
+              updateLineStrength(rowData)
+
+              if (rowData.is_done !== 0) {
+
+                rowData.is_done = 0 // 3️⃣ 同步更新后端状态
+
+                updateLineIsDone(rowData, 0)
+
+              }
+
+            },
+
+          },
+
+          () =>
+
+            strengthOptions.value.map((s) =>
+
+              h(ElOption, { label: s.label, value: s.value })
+
+            )
+
+        ),
+
+      ]
+
+    ),
+
+  },
+
+  {
+
+    key: 'audio',
+
+    title: '试听 / 处理',
+
+    align: 'center',
+
+    width: 500,
+
+    minWidth: 300,
+
+    maxWidth: 500,
+
+    cellRenderer: ({ rowData }) =>
+
+      h('div', {
+
+        style: {
+
+          width: '100%',
+
+          height: '100%',
+
+          // ✅ 填满整行
+
+          display: 'flex',
+
+          // ✅ 居中显示
+
+          alignItems: 'center',
+
+          justifyContent: 'center',
+
         },
-    }
+
+      }, [
+
+        rowData.audio_path ?
+
+          h(WaveCellPro, {
+
+            key: waveKey(rowData),
+
+            src: waveSrc(rowData),
+
+            speed: rowData._procSpeed || 1.0,
+
+            volume2x: rowData._procVolume ?? 1.0,
+
+            'start-ms': rowData.start_ms,
+
+            'end-ms': rowData.end_ms,
+
+            style: {
+
+              maxHeight: '100%', // ✅ 防止溢出
+
+              objectFit: 'contain',
+
+            },
+
+            onReady: (p) => registerWave({ handle: p, id: rowData.id }),
+
+            onRequestStopOthers: stopOthers,
+
+            onDispose: unregisterWave,
+
+            onConfirm: (p) => confirmAndProcess(rowData, p),
+
+            onEnded: (p) => handleEnded({ p, id: rowData.id }),
+
+          }) :
+
+          h(ElText, { type: 'info' }, () => '无音频'),
+
+      ]),
+
+  },
+
+  {
+
+    key: 'edit',
+
+    title: '操作',
+
+    width: 150,
+
+    minWidth: 100,
+
+    maxWidth: 200,
+
+    align: 'center',
+
+    headerCellRenderer: () => h(
+
+      ElButton,
+
+      {
+
+        size: 'small',
+
+        type: 'success',
+
+        plain: true,
+
+        onClick: insertAtTop
+
+      },
+
+      () => '首行插入'
+
+    ),
+
+    cellRenderer: ({ rowData }) =>
+
+      h('div', { style: 'display:flex;justify-content:center;gap:4px;' }, [
+
+        h(
+
+          ElButton,
+
+          {
+
+            size: 'small',
+
+            type: 'primary',
+
+            plain: true,
+
+            onClick: () => insertBelow(rowData),
+
+          },
+
+          () => '插入'
+
+        ),
+
+        h(
+
+          ElPopconfirm,
+
+          {
+
+            title: '确认删除该台词？',
+
+            onConfirm: () => deleteLine(rowData),
+
+          },
+
+          {
+
+            reference: () =>
+
+              h(
+
+                ElButton,
+
+                {
+
+                  size: 'small',
+
+                  type: 'danger',
+
+                  plain: true
+
+                },
+
+                () => '删除'
+
+              ),
+
+          }
+
+        ),
+
+      ]),
+
+  },
+
+  {
+
+    key: 'status',
+
+    title: '状态',
+
+    width: 100,
+
+    minWidth: 100,
+
+    maxWidth: 150,
+
+    align: 'center',
+
+    fixed: 'right',
+
+    // ✅ 自定义表头，包含“状态”文字 + 下拉框
+
+    headerCellRenderer: () => h(
+
+      'div',
+
+      { class: 'status-header' },
+
+      [
+
+        // 左侧文字标签
+
+        h('span', { class: 'status-title' }, '状态'),
 
 
+        // 状态筛选下拉框
+
+        h(
+
+          ElSelect,
+
+          {
+
+            modelValue: statusFilter.value,
+
+            placeholder: '按状态筛选',
+
+            clearable: true,
+
+            size: 'small',
+
+            onChange: (val) => { statusFilter.value = val },
+
+            style: { width: '100px', marginLeft: '8px' } // 调整宽度和间距
+
+          },
+
+          () =>
+
+            [
+
+              { value: 'pending', label: '未生成' },
+
+              { value: 'processing', label: '生成中' },
+
+              { value: 'done', label: '已生成' },
+
+              { value: 'failed', label: '生成失败' }
+            ].map((opt) =>
+
+              h(ElOption, { label: opt.label, value: opt.value })
+            )
+        )
+      ]
+    ),
+
+    cellRenderer: ({ rowData }) =>
+
+      h(ElTag, {
+        size: 'small',
+        type: statusType(rowData.status),
+        effect: 'plain'
+      }, () => statusText(rowData.status)),
+
+  },
 
 ])
 
@@ -3093,6 +3903,63 @@ function updateTreeHeight() {
 onMounted(() => {
     updateTreeHeight();
     window.addEventListener("resize", updateTreeHeight);
+    const style = document.createElement('style');
+
+  style.innerHTML = `
+
+    .lines-table .selected-row {
+
+      background-color: #e6f7ff; /* 选择你喜欢的高亮颜色 */
+
+    }
+
+    .batch-operation-panel {
+
+        display: flex;
+
+        justify-content: space-between;
+
+        align-items: center;
+
+        padding: 8px 12px;
+
+        background-color: #f0f9ff;
+
+        border: 1px solid #b3d8ff;
+
+        border-radius: 4px;
+
+        margin-bottom: 12px;
+
+    }
+
+    .batch-operation-panel .batch-info {
+
+        font-weight: bold;
+
+        color: #409EFF;
+
+    }
+
+    .batch-operation-panel .batch-controls {
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 8px;
+
+    }
+
+    .batch-operation-panel .mr-2 {
+
+        margin-right: 8px;
+
+    }
+
+  `;
+
+  document.head.appendChild(style);
 });
 onBeforeUnmount(() => {
     window.removeEventListener("resize", updateTreeHeight);
