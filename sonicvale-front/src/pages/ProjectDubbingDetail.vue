@@ -56,12 +56,6 @@
                             </el-icon>
                         </el-button>
                     </div>
-
-
-
-
-
-
                     <div class="aside-actions">
 
 
@@ -84,10 +78,8 @@
                                 <Search />
                             </el-icon></template>
                     </el-input>
+
                 </div>
-
-
-
                 <!-- ✅ 替换开始 -->
                 <!-- 让树撑满剩余高度 -->
                 <div class="tree-container">
@@ -123,8 +115,6 @@
 
                     </el-tree-v2>
                 </div>
-
-
             </el-aside>
 
             <!-- 主区域 -->
@@ -251,7 +241,13 @@
                                 <el-switch v-model="playMode" active-text="顺序播放" inactive-text="单条播放"
                                     active-value="sequential" inactive-value="single" />
 
-
+                                <el-button type="primary" @click="openBatchEdit" :disabled="selectedLineIds.size === 0"
+                                    class="ml8">
+                                    <el-icon>
+                                        <Edit />
+                                    </el-icon>
+                                    批量修改属性
+                                </el-button>
                             </div>
 
                             <!-- ✅ 新版：虚拟滚动表格 -->
@@ -358,7 +354,6 @@
 
                                 </el-card>
                             </div>
-
 
                         </el-tab-pane>
                     </el-tabs>
@@ -605,7 +600,68 @@
             </div>
         </el-dialog>
 
+        <!-- ... 在 </template> 结束标签前添加弹窗 ... -->
 
+        <!-- 批量修改弹窗 -->
+        <el-dialog title="批量修改台词属性" v-model="dialogBatchEdit" width="500px">
+            <el-alert type="info" :closable="false" class="mb-2" title="留空则不修改该字段" />
+
+            <el-form :model="batchEditForm" label-width="80px">
+                <!-- 统一修改角色 -->
+                <el-form-item label="统一角色">
+                    <el-select v-model="batchEditForm.role_id" filterable clearable placeholder="选择新角色（留空不修改）"
+                        style="width: 100%;">
+                        <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
+                    </el-select>
+                </el-form-item>
+
+                <!-- 统一修改情绪 -->
+                <el-form-item label="统一情绪">
+                    <el-select v-model="batchEditForm.emotion_id" clearable placeholder="选择新情绪（留空不修改）"
+                        style="width: 100%;">
+                        <el-option v-for="e in emotionOptions" :key="e.value" :label="e.label" :value="e.value" />
+                    </el-select>
+                </el-form-item>
+
+                <el-form-item label="统一文本">
+                    <!-- 建议使用 type="textarea" 因为台词通常比较长 -->
+                    <el-input v-model="batchEditForm.text_content" type="textarea" :rows="3" clearable
+                        placeholder="填入要统一替换的文本内容" style="width: 100%;">
+                    </el-input>
+                </el-form-item>
+
+                <!-- 统一修改强度 -->
+                <el-form-item label="统一强度">
+                    <el-select v-model="batchEditForm.strength_id" clearable placeholder="选择新强度（留空不修改）"
+                        style="width: 100%;">
+                        <el-option v-for="s in strengthOptions" :key="s.value" :label="s.label" :value="s.value" />
+                    </el-select>
+                </el-form-item>
+
+                <el-form-item label="播放速度">
+                    <el-input-number v-model="batchEditForm.speed" :min="0.5" :max="2.0" :step="0.1" :precision="1"
+                        placeholder="留空不修改" controls-position="right" style="width: 100%" />
+                    <span style="font-size: 12px; color: #999; margin-left: 8px;">范围: 0.5x - 2.0x</span>
+                </el-form-item>
+
+                <!-- ✅ 新增：音量 -->
+                <el-form-item label="音量 (倍数)">
+                    <el-input-number v-model="batchEditForm.volume2x" :min="0" :max="2.0" :step="0.1" :precision="1"
+                        placeholder="留空不修改" controls-position="right" style="width: 100%" />
+                    <span style="font-size: 12px; color: #999; margin-left: 8px;">范围: 0.0 - 2.0</span>
+                </el-form-item>
+
+                <!-- 状态重置选项 -->
+                <el-form-item label="状态重置">
+                    <el-switch v-model="batchEditForm.reset_status" active-text="将选中行标记为未完成" inactive-text="保持原状态" />
+                </el-form-item>
+            </el-form>
+
+            <template #footer>
+                <el-button @click="dialogBatchEdit = false">取消</el-button>
+                <el-button type="primary" @click="submitBatchEdit" :loading="batchSaving">确定应用</el-button>
+            </template>
+        </el-dialog>
 
         <!-- 拆分预览（解析 get-lines 的结果） -->
         <!-- <el-dialog title="拆分预览" v-model="dialogSplitPreview" width="780px">
@@ -648,7 +704,9 @@ import {
     ElText,
     ElButton,
     ElPopconfirm,
-    ElSwitch
+    ElSwitch,
+    ElCheckbox,
+    ElCheckboxGroup
 } from 'element-plus'
 const emotionLocked = ref(false)
 const strengthLocked = ref(false)
@@ -1327,28 +1385,55 @@ async function generateOne(row) {
 
 
 function generateAll() {
-    const todo = displayedLines.value.filter(l => canGenerate(l))
-    if (!todo.length) {
-        return ElMessage.info('无可生成项或未绑定音色')
-    }
+    // 优先获取选中行，如果没选，则使用筛选后的列表
+    let todo = []
 
-    ElMessageBox.confirm(
-        '此操作将会重新生成全部已绑定音色的台词，是否继续？',
-        '提示',
-        {
-            confirmButtonText: '确认',
-            cancelButtonText: '取消',
-            type: 'warning',
+    if (selectedLineIds.value.size > 0) {
+        // 模式 A: 仅处理选中行
+        todo = lines.value.filter(l => selectedLineIds.value.has(l.id) && canGenerate(l))
+        if (todo.length === 0) {
+            return ElMessage.info('选中的行中无可生成项或未绑定音色')
         }
-    )
-        .then(() => {
-            // 用户确认
-            todo.forEach(generateOne)
-        })
-        .catch(() => {
-            // 用户取消
-            ElMessage.info('已取消批量生成')
-        })
+
+        ElMessageBox.confirm(
+            `确定要为选中的 ${todo.length} 条台词生成音频吗？`,
+            '批量生成',
+            {
+                confirmButtonText: '确认',
+                cancelButtonText: '取消',
+                type: 'warning',
+            }
+        )
+            .then(() => {
+                todo.forEach(generateOne)
+                ElMessage.success('已将选中任务加入队列')
+                // 生成后可选择性清空选中状态
+                // selectedLineIds.value.clear()
+            })
+            .catch(() => { })
+
+    } else {
+        // 模式 B: 原有逻辑，处理所有筛选行
+        todo = displayedLines.value.filter(l => canGenerate(l))
+        if (!todo.length) {
+            return ElMessage.info('无可生成项或未绑定音色')
+        }
+        ElMessageBox.confirm(
+            '此操作将会重新生成当前列表中所有已绑定音色的台词，是否继续？',
+            '提示',
+            {
+                confirmButtonText: '确认',
+                cancelButtonText: '取消',
+                type: 'warning',
+            }
+        )
+            .then(() => {
+                todo.forEach(generateOne)
+            })
+            .catch(() => {
+                ElMessage.info('已取消批量生成')
+            })
+    }
 }
 
 // 播放
@@ -2158,7 +2243,7 @@ function playVoice(voiceId) {
 
 // 音频处理
 import WaveCellPro from '../components/WaveCellPro.vue'
-import { fa } from 'element-plus/es/locales.mjs'
+import { el, fa } from 'element-plus/es/locales.mjs'
 // 行音频版本号：lineId -> number
 const audioVer = ref(new Map())
 
@@ -2554,6 +2639,45 @@ function handleEnded({ handle, id }) {
         console.warn('handleEnded: 下一行实例没有 play 方法 => ID:', nextRow.id)
     }
 }
+
+// ==========================================
+// ✅ 多选相关状态
+// ==========================================
+const selectedLineIds = ref(new Set()) // 存储选中行的 ID
+// 切换单行选中状态
+function toggleRowSelection(id) {
+    if (selectedLineIds.value.has(id)) {
+        selectedLineIds.value.delete(id)
+    } else {
+        selectedLineIds.value.add(id)
+    }
+}
+// 切换全选（基于当前筛选后的结果）
+function toggleSelectAll() {
+    const currentVisibleIds = displayedLines.value.map(l => l.id)
+    // 如果当前选中的数量等于当前可见的数量，则视为全选状态，点击应清空
+    const isAllSelected = currentVisibleIds.length > 0 &&
+        currentVisibleIds.every(id => selectedLineIds.value.has(id))
+    if (isAllSelected) {
+        // 清空选中
+        selectedLineIds.value.clear()
+    } else {
+        // 选中所有当前可见的行
+        selectedLineIds.value = new Set(currentVisibleIds)
+    }
+}
+// 计算当前页是否全选（用于表头复选框的 indeterminate 状态）
+const isAllCurrentPageSelected = computed(() => {
+    const currentVisibleIds = displayedLines.value.map(l => l.id)
+    if (currentVisibleIds.length === 0) return false
+    return currentVisibleIds.every(id => selectedLineIds.value.has(id))
+})
+const isIndeterminate = computed(() => {
+    const currentVisibleIds = displayedLines.value.map(l => l.id)
+    const selectedCount = currentVisibleIds.filter(id => selectedLineIds.value.has(id)).length
+    return selectedCount > 0 && selectedCount < currentVisibleIds.length
+})
+
 // =============== ElTableV2 列配置 ===============
 // ✅ 通用高亮包装函数（放在 <script setup> 顶部或表格定义前）
 const statusFilter = ref('')
@@ -2581,6 +2705,22 @@ const wrapCellHighlight = (condition, children) => {
 }
 import { reactive } from 'vue'
 const lineColumns = reactive([
+    {
+        key: 'selection',
+        width: 50,
+        align: 'center',
+        cellRenderer: ({ rowData }) =>
+            h(ElCheckbox, {
+                modelValue: selectedLineIds.value.has(rowData.id),
+                onChange: () => toggleRowSelection(rowData.id)
+            }),
+        headerCellRenderer: () =>
+            h(ElCheckbox, {
+                modelValue: isAllCurrentPageSelected.value,
+                indeterminate: isIndeterminate.value,
+                onChange: toggleSelectAll
+            })
+    },
     {
         key: 'line_order',
         title: '序',
@@ -2766,7 +2906,7 @@ const lineColumns = reactive([
                     ? h(WaveCellPro, {
                         key: waveKey(rowData),
                         src: waveSrc(rowData),
-                        speed: rowData._procSpeed || 1.0,
+                        speed: rowData._procSpeed || 2,
                         volume2x: rowData._procVolume ?? 1.0,
                         'start-ms': rowData.start_ms,
                         'end-ms': rowData.end_ms,
@@ -2926,9 +3066,6 @@ const lineColumns = reactive([
             )
         },
     }
-
-
-
 ])
 
 
@@ -3136,6 +3273,121 @@ function restoreLastChapter() {
         activeChapterId.value = null;
     }
     console.log('最终选中章节', activeChapterId.value);
+}
+
+// ==========================================
+// ✅ 批量修改相关逻辑
+// ==========================================
+
+const dialogBatchEdit = ref(false)
+const batchSaving = ref(false)
+const batchEditForm = ref({
+    role_id: null,
+    emotion_id: null,
+    strength_id: null,
+    speed: null,
+    volume: null,
+    reset_status: false,
+    text_content: null
+})
+
+// 打开弹窗，重置表单
+function openBatchEdit() {
+    if (selectedLineIds.value.size === 0) return
+    batchEditForm.value = {
+        role_id: null,
+        emotion_id: null,
+        strength_id: null,
+        speed: null,
+        volume: null,
+        text_content: null,
+        reset_status: false
+    }
+    dialogBatchEdit.value = true
+}
+
+// 提交批量修改
+async function submitBatchEdit() {
+    const ids = Array.from(selectedLineIds.value)
+    const { role_id, emotion_id, strength_id, reset_status, speed, volume2x, text_content } = batchEditForm.value
+
+    // 校验：如果什么都没填，提示一下
+    if (!role_id && !emotion_id && !strength_id && !reset_status && !speed && !volume2x && !text_content) {
+        return ElMessage.warning('请至少选择一项要修改的内容')
+    }
+
+    batchSaving.value = true
+    const loading = ElLoading.service({
+        lock: true,
+        text: `正在批量修改 ${ids.length} 条数据...`,
+        background: 'rgba(0, 0, 0, 0.5)',
+    })
+
+    let successCount = 0
+    let failCount = 0
+
+    try {
+        // 遍历所有选中的 ID 进行修改
+        // 注意：这里为了逻辑简单使用了循环请求，如果数据量很大建议后端提供批量接口
+        const updatePromises = ids.map(async (id) => {
+            // 性能优化提示：如果 lines 数据量很大，建议先建立一个 Map 查找，避免在循环中多次 find
+            const row = lines.value.find(l => l.id === id)
+            if (!row) return
+
+            // 构造更新载荷
+            const payload = {
+                chapter_id: row.chapter_id,
+            }
+
+            if (role_id) payload.role_id = role_id
+            if (emotion_id) payload.emotion_id = emotion_id
+            if (strength_id) payload.strength_id = strength_id
+            if (speed) payload.speed = speed
+            if (volume2x) payload.volume2x = volume2x
+            if (reset_status) payload.is_done = 0
+            if (text_content) payload.text_content = text_content
+
+            // 发送请求
+            try {
+                const res = await lineAPI.updateLine(id, payload)
+                if (res?.code === 200) {
+                    // 前端乐观更新（直接改数据，不刷新整个列表）
+                    if (role_id) row.role_id = role_id
+                    if (emotion_id) row.emotion_id = emotion_id
+                    if (strength_id) row.strength_id = strength_id
+                    if (speed) row._procSpeed = speed
+                    if (volume2x) row._procVolume = volume2x
+                    if (reset_status) {
+                        row.is_done = 0
+                        // 可选：如果重置状态意味着需要清除旧音频，可以在这里处理
+                        // if (row.audio_path) row.audio_path = null 
+                    }
+                    if (text_content) row.text_content = text_content
+                    successCount++
+                } else {
+                    failCount++
+                }
+            } catch (e) {
+                failCount++
+            }
+        })
+
+        await Promise.all(updatePromises)
+
+        if (failCount === 0) {
+            ElMessage.success(`批量修改成功，共 ${successCount} 条`)
+            dialogBatchEdit.value = false
+        } else {
+            ElMessage.warning(`修改完成：成功 ${successCount} 条，失败 ${failCount} 条`)
+        }
+
+    } catch (e) {
+        ElMessage.error('批量修改发生异常')
+        console.error(e)
+    } finally {
+        batchSaving.value = false
+        loading.close()
+    }
 }
 
 
@@ -3478,20 +3730,6 @@ function restoreLastChapter() {
     /* ✅ 纯白微红底 */
     box-shadow: 0 0 0 1px var(--el-color-danger-light-5) inset;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 .content {
 
