@@ -2644,12 +2644,38 @@ function handleEnded({ handle, id }) {
 // ✅ 多选相关状态
 // ==========================================
 const selectedLineIds = ref(new Set()) // 存储选中行的 ID
-// 切换单行选中状态
-function toggleRowSelection(id) {
-    if (selectedLineIds.value.has(id)) {
-        selectedLineIds.value.delete(id)
+const lastClickedIndex = ref(null) // 记录最后一次点击的行索引，用于 Shift 多选
+
+// 切换单行选中状态（支持 Shift 多选）
+function toggleRowSelection(id, event) {
+    const currentIndex = displayedLines.value.findIndex(l => l.id === id)
+    
+    // 检查是否有 Shift 键
+    const hasShiftKey = event && (event.shiftKey === true || (event.nativeEvent && event.nativeEvent.shiftKey === true))
+    
+    // Shift 多选模式
+    if (hasShiftKey && lastClickedIndex.value !== null) {
+        const start = Math.min(lastClickedIndex.value, currentIndex)
+        const end = Math.max(lastClickedIndex.value, currentIndex)
+        
+        // 清空之前的选择（可选，根据需求决定是否保留）
+        // selectedLineIds.value.clear()
+        
+        // 选中范围内的所有行
+        for (let i = start; i <= end; i++) {
+            selectedLineIds.value.add(displayedLines.value[i].id)
+        }
+        
+        // Shift 多选时不更新 lastClickedIndex，保持连续选择的基础点
     } else {
-        selectedLineIds.value.add(id)
+        // 普通单选模式
+        if (selectedLineIds.value.has(id)) {
+            selectedLineIds.value.delete(id)
+        } else {
+            selectedLineIds.value.add(id)
+        }
+        // 只在非 Shift 模式下更新最后点击的索引
+        lastClickedIndex.value = currentIndex
     }
 }
 // 切换全选（基于当前筛选后的结果）
@@ -2709,11 +2735,30 @@ const lineColumns = reactive([
         key: 'selection',
         width: 50,
         align: 'center',
-        cellRenderer: ({ rowData }) =>
-            h(ElCheckbox, {
-                modelValue: selectedLineIds.value.has(rowData.id),
-                onChange: () => toggleRowSelection(rowData.id)
-            }),
+        cellRenderer: ({ rowData }) => {
+            // 创建一个包装 div 来监听原生点击事件
+            return h('div', {
+                style: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' },
+                onClick: (e) => {
+                    // 检测是否按下了 Shift 键
+                    toggleRowSelection(rowData.id, e)
+                }
+            }, [
+                h(ElCheckbox, {
+                    modelValue: selectedLineIds.value.has(rowData.id),
+                    onChange: (checked) => {
+                        // 这里不做任何处理，由父 div 的 onClick 处理
+                        // 但需要阻止冒泡避免重复触发
+                    },
+                    onClick: (e) => {
+                        // 阻止复选框自己的点击事件冒泡到父 div
+                        e.stopPropagation()
+                        // 在复选框自己的点击事件中处理
+                        toggleRowSelection(rowData.id, e)
+                    }
+                })
+            ])
+        },
         headerCellRenderer: () =>
             h(ElCheckbox, {
                 modelValue: isAllCurrentPageSelected.value,

@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { VideoPlay, VideoPause, Download } from '@element-plus/icons-vue'
 import WaveSurfer from 'wavesurfer.js'
@@ -161,7 +161,31 @@ onBeforeUnmount(() => {
 
 // —— 实时预听：速度/音量 —— //
 watch(rate, v => ws && ws.setPlaybackRate(v || 1.0))
-watch(vol2x, v => ws && ws.setVolume(Math.max(0, Math.min(v ?? 1.0, 1.0))))
+watch(vol2x, (v) => {
+  if (ws) {
+    const normalizedVol = Math.max(0, Math.min(v ?? 1.0, 1.0))
+    ws.setVolume(normalizedVol)
+    
+    // 强制更新进度条和波形渲染
+    nextTick(() => {
+      if (ws) {
+        // 方法1: 触发 redraw 事件更新整个波形和进度条
+        ws.drawer?.fireEvent?.('redraw')
+        
+        // 方法2: 直接调用 draw 方法
+        if (ws.drawer && typeof ws.drawer.draw === 'function') {
+          ws.drawer.draw()
+        }
+        
+        // 方法3: 如果正在播放，手动触发 audioprocess 事件
+        if (isPlaying.value && ws.backend) {
+          const currentTime = ws.getCurrentTime ? ws.getCurrentTime() : 0
+          ws.fireEvent('audioprocess', currentTime)
+        }
+      }
+    })
+  }
+})
 
 // 切换“标注/浏览”：开关拖拽建区
 watch(regionMode, (on) => {
