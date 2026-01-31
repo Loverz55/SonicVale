@@ -53,10 +53,13 @@ export function processAudio(line_id, payload) {
 }
 
 // 导出结果和字幕
-// 导出接口，带 single 参数
-export function exportLines(chapter_id, single = false) {
+// 导出接口，带 single 参数和项目名称
+export function exportLines(chapter_id, single = false, projectName = null) {
   return request.get(`/lines/export-audio/${chapter_id}`, {
-    params: { single }
+    params: {
+      single,
+      project_name: projectName  // 传递项目名称给后端
+    }
   })
 }
 

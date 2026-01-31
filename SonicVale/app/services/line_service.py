@@ -591,27 +591,39 @@ class LineService:
         wb.save(file_path)
         return file_path
 
-    def export_audio(self, chapter_id,single=False):
+    def export_audio(self, chapter_id, single=False, project_name=None):
         # 拿到所有的台词
         lines = self.repository.get_all(chapter_id)
 
         paths = [line.audio_path for line in lines]
         if len(paths) > 0:
-            # 把paths[0]的path去掉后面的文件名，得到文件夹路径
-            output_dir_path = os.path.join(os.path.dirname(paths[0]), "result")
-            # 不存在就创建
-            os.makedirs(output_dir_path, exist_ok=True)
-            # 放到result目录下，名字叫项目名称_章节名称.wav
-            output_path = os.path.join(output_dir_path, "result.wav")
+            # 获取第一条音频文件所在的目录（通常是项目根目录）
+            base_dir = os.path.dirname(paths[0])
+            
+            # 如果提供了项目名称，使用项目名称作为导出文件夹
+            if project_name:
+                # 清理项目名称中的非法字符
+                safe_project_name = "".join(c for c in project_name if c.isalnum() or c in (' ', '-', '_')).strip()
+                # 创建项目名称的导出文件夹
+                export_dir = os.path.join(base_dir, safe_project_name)
+            else:
+                # 如果没有提供项目名称，使用原来的逻辑
+                export_dir = os.path.join(base_dir, "result")
+            
+            # 创建导出目录
+            os.makedirs(export_dir, exist_ok=True)
+            
+            # 放到导出目录下，名字叫 result.wav
+            output_path = os.path.join(export_dir, "result.wav")
             self.concat_wav_files(paths, output_path)
+            
             # 生成字幕
-            output_subtitle_path = os.path.join(output_dir_path, "result.srt")
-            subtitle_engine.generate_subtitle(output_path,output_subtitle_path)
-
+            output_subtitle_path = os.path.join(export_dir, "result.srt")
+            subtitle_engine.generate_subtitle(output_path, output_subtitle_path)
 
             if single:
                 # 生成所有的单条字幕
-                subtitle_dir_path = os.path.join(os.path.dirname(paths[0]), "subtitles")
+                subtitle_dir_path = os.path.join(export_dir, "subtitles")
                 # 先清空这个文件夹
                 shutil.rmtree(subtitle_dir_path, ignore_errors=True)
                 os.makedirs(subtitle_dir_path, exist_ok=True)
@@ -619,11 +631,11 @@ class LineService:
                     path = line.audio_path
                     base_name = os.path.splitext(os.path.basename(path))[0]
                     subtitle_path = os.path.join(subtitle_dir_path, base_name + ".srt")
-                    subtitle_engine.generate_subtitle(path,subtitle_path)
+                    subtitle_engine.generate_subtitle(path, subtitle_path)
                     #     将subtitle_path写进line.subtitle_path
-                    self.repository.update(line.id,{"subtitle_path":subtitle_path})
+                    self.repository.update(line.id, {"subtitle_path": subtitle_path})
             # 导出所有数据
-            self.export_lines_to_excel(lines, os.path.join(output_dir_path, "all_lines.xlsx"))
+            self.export_lines_to_excel(lines, os.path.join(export_dir, "all_lines.xlsx"))
             return True
         else:
             return False

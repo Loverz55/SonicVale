@@ -287,8 +287,9 @@ async def process_audio(line_id: int, dto: LineAudioProcessDTO, line_service: Li
 @router.get("/export-audio/{chapter_id}")
 async def export_audio(chapter_id: int,
                        single: bool = Query(False, description="是否导出单条音频字幕"),
+                       project_name: str = Query(None, description="项目名称"),
                        line_service: LineService = Depends(get_line_service)):
-    res = line_service.export_audio(chapter_id, single)
+    res = line_service.export_audio(chapter_id, single, project_name)
     if not res:
         return Res(data=None, code=400, message="导出失败")
     return Res(data=res, code=200, message="导出成功")

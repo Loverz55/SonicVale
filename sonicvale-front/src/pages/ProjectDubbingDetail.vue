@@ -2049,6 +2049,12 @@ async function markAllAsCompleted() {
         ElMessage.info('当前无台词')
         return
     }
+    
+    // 获取项目名称，用于创建导出文件夹
+    const projectName = project.value?.name || `project_${projectId}`
+    // 清理项目名称中的非法字符
+    const safeProjectName = projectName.replace(/[\\/:*?"<>|]/g, '_').trim()
+    
     try {
         await ElMessageBox.confirm(
             '此操作将会批量导出所有台词音频，是否继续？',
@@ -2174,7 +2180,7 @@ async function markAllAsCompleted() {
                 // 用户点击了“否” 或者关闭
                 isExportSingleSubtitle = false
             }
-            const expRes = await lineAPI.exportLines(activeChapterId.value, isExportSingleSubtitle)
+            const expRes = await lineAPI.exportLines(activeChapterId.value, isExportSingleSubtitle, safeProjectName)
 
             // 如果你有单独的字幕导出接口，可按需增加：
             // const srtRes = (typeof lineAPI.exportSubtitles === 'function')
