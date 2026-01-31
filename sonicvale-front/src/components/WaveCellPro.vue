@@ -81,7 +81,7 @@ const region = ref(null) // ← 关键：响应式
 const isPlaying = ref(false)
 const ready = ref(false)
 const rate = ref(props.speed || 1.0)
-const vol2x = ref(Math.max(0, Math.min(props.volume2x ?? 1.0, 1.0))) // 统一 0~1
+const vol2x = ref(Math.max(0, Math.min(props.volume2x ?? 1.0, 2.0))) // 0~2.0
 const regionMode = ref(false)
 
 const tailSilence = ref(0) // 默认 0 秒
@@ -186,6 +186,22 @@ watch(vol2x, (v) => {
     })
   }
 })
+
+watch(
+  () => props.speed,
+  (v) => {
+    const next = v ?? 1.0
+    if (next !== rate.value) rate.value = next
+  }
+)
+
+watch(
+  () => props.volume2x,
+  (v) => {
+    const next = Math.max(0, Math.min(v ?? 1.0, 2.0))
+    if (next !== vol2x.value) vol2x.value = next
+  }
+)
 
 // 切换“标注/浏览”：开关拖拽建区
 watch(regionMode, (on) => {

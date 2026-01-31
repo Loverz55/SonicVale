@@ -3363,7 +3363,9 @@ async function submitBatchEdit() {
     const { role_id, emotion_id, strength_id, reset_status, speed, volume2x, text_content } = batchEditForm.value
 
     // 校验：如果什么都没填，提示一下
-    if (!role_id && !emotion_id && !strength_id && !reset_status && !speed && !volume2x && !text_content) {
+    const hasSpeed = speed != null
+    const hasVolume = volume2x != null
+    if (!role_id && !emotion_id && !strength_id && !reset_status && !hasSpeed && !hasVolume && !text_content) {
         return ElMessage.warning('请至少选择一项要修改的内容')
     }
 
@@ -3393,8 +3395,8 @@ async function submitBatchEdit() {
             if (role_id) payload.role_id = role_id
             if (emotion_id) payload.emotion_id = emotion_id
             if (strength_id) payload.strength_id = strength_id
-            if (speed) payload.speed = speed
-            if (volume2x) payload.volume2x = volume2x
+            if (hasSpeed) payload.speed = speed
+            if (hasVolume) payload.volume2x = volume2x
             if (reset_status) payload.is_done = 0
             if (text_content) payload.text_content = text_content
 
@@ -3406,8 +3408,8 @@ async function submitBatchEdit() {
                     if (role_id) row.role_id = role_id
                     if (emotion_id) row.emotion_id = emotion_id
                     if (strength_id) row.strength_id = strength_id
-                    if (speed) row._procSpeed = speed
-                    if (volume2x) row._procVolume = volume2x
+                    if (hasSpeed) row._procSpeed = speed
+                    if (hasVolume) row._procVolume = volume2x
                     if (reset_status) {
                         row.is_done = 0
                         // 可选：如果重置状态意味着需要清除旧音频，可以在这里处理
