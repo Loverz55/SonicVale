@@ -12,14 +12,7 @@ const http = require('http')
 let backendProcess = null
 let mainWindow = null  // 保存窗口引用
 
-function startBackend() {
-  const isDev = !app.isPackaged
-
-  // ✅ 根据平台选择不同的后端可执行文件
-  // Windows: main.exe
-  // macOS(Apple Silicon): main-mac-arm64 (你需要提供这个文件)
-  // macOS(Intel): main-mac-x64 (可选)
-  // Linux: main-linux (可选)
+function getBackendName() {
   let backendName = null
   if (process.platform === 'win32') backendName = 'main.exe'
   else if (process.platform === 'darwin') {
@@ -31,9 +24,35 @@ function startBackend() {
     throw new Error(`Unsupported platform: ${process.platform} ${process.arch}`)
   }
 
-  const backendPath = isDev
+  return backendName
+}
+
+function getBackendPath() {
+  const isDev = !app.isPackaged
+  const backendName = getBackendName()
+
+  return isDev
     ? path.join(__dirname, backendName)
     : path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', backendName)
+}
+
+function ensureBackendExecutable(backendPath) {
+  if (fs.existsSync(backendPath)) return
+
+  const envLabel = app.isPackaged ? '生产环境' : '开发环境'
+  throw new Error(
+    [
+      `未找到后端可执行文件：${backendPath}`,
+      `当前环境：${envLabel}`,
+      'Windows 打包前请先生成 sonicvale-front/electron/main.exe。',
+      '可执行 npm run build:backend:win 或先用 PyInstaller 打包 SonicVale/run.py。'
+    ].join('\n')
+  )
+}
+
+function startBackend() {
+  const backendPath = getBackendPath()
+  ensureBackendExecutable(backendPath)
 
   console.log('启动后端：', backendPath)
 
@@ -134,12 +153,16 @@ function createWindow() {
 // ============== 事件入口 ===============
 
 app.whenReady().then(async () => {
-  startBackend()
   try {
+    startBackend()
     await waitForBackendReady()
     createWindow()
   } catch (err) {
     console.error('后端启动失败:', err)
+    dialog.showErrorBox(
+      '后端启动失败',
+      `${err.message}\n\n请确认安装包中包含 resources\\app.asar.unpacked\\electron\\main.exe。`
+    )
     const errorWin = new BrowserWindow({ width: 600, height: 300 })
     errorWin.loadURL(`data:text/html;charset=utf-8,
   <!DOCTYPE html>
@@ -147,7 +170,7 @@ app.whenReady().then(async () => {
     <head><meta charset="UTF-8"></head>
     <body>
       <h2 style="font-family:sans-serif">后端启动失败</h2>
-      <p>请检查后端程序并重启应用</p>
+      <pre style="white-space:pre-wrap;font-family:Consolas,monospace">${String(err.message || err)}</pre>
     </body>
   </html>
 `);

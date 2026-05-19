@@ -89,6 +89,28 @@ cd sonicvale-front
 npm install   # 安装依赖
 npm run start # 启动前端包括electron
 ```
+
+### 4️⃣ 打包 Windows 安装包
+Windows 安装包依赖后端可执行文件 `sonicvale-front/electron/main.exe`。仓库默认不包含这个文件，需要先本地生成。
+
+先安装 PyInstaller：
+```bash
+pip install pyinstaller
+```
+
+然后执行：
+```bash
+cd sonicvale-front
+npm run dist:win
+```
+
+这条命令会先把 [SonicVale/run.py](C:/Users/Administrator/code/SonicVale/SonicVale/run.py) 打包成 `electron/main.exe`，再继续执行 `electron-builder`。
+
+如果你只想单独验证后端 exe 是否能生成，也可以先运行：
+```bash
+cd sonicvale-front
+npm run build:backend:win
+```
 ## Coffe
 如果您觉得我的项目对您有所帮助，欢迎您的赞助。您的支持将使我有更多的动力继续维护和改进这个项目。
 您可以通过扫描下面的二维码来请我喝杯咖啡：
